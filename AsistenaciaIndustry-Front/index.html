@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema de Control de Asistencia a Eventos | Íntegro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+      window.addEventListener('error', function (e) {
+        var root = document.getElementById('root');
+        if (root && (!root.children.length || root.innerHTML.trim() === '')) {
+          root.innerHTML = '<div style="padding:40px;max-width:700px;margin:40px auto;background:#fff;border-radius:12px;border:2px solid #c3302d;box-shadow:0 10px 30px rgba(0,0,0,0.15);font-family:sans-serif;">' +
+            '<h2 style="color:#c3302d;margin-top:0;">⚠️ Error de Carga JavaScript</h2>' +
+            '<p style="font-weight:bold;font-size:1.1rem;">' + (e.message || 'Error desconocido') + '</p>' +
+            '<p style="color:#666;font-size:0.85rem;">Archivo: ' + (e.filename || 'N/A') + ' (Línea: ' + (e.lineno || 'N/A') + ')</p>' +
+            '<pre style="background:#f4f5f7;padding:12px;border-radius:6px;overflow:auto;font-size:0.75rem;">' + (e.error && e.error.stack ? e.error.stack : 'Sin datos de stack trace') + '</pre>' +
+            '<button onclick="window.location.reload()" style="background:#c3302d;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;margin-top:10px;">Recargar Página</button>' +
+            '</div>';
+        }
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

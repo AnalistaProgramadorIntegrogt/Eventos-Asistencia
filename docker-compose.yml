@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./AsistenciaIndustry-Back
+      dockerfile: Dockerfile
+    container_name: eventos_backend
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./AsistenciaIndustry-Back/.env
+    restart: unless-stopped
+    # Para desarrollo, a veces es útil mapear los volúmenes, pero aquí usamos el build estándar
+    # volumes:
+    #   - ./AsistenciaIndustry-Back:/app
+    #   - /app/node_modules
+
+  frontend:
+    build:
+      context: ./AsistenaciaIndustry-Front
+      dockerfile: Dockerfile
+    container_name: eventos_frontend
+    ports:
+      - "80:80"
+    env_file:
+      - ./AsistenaciaIndustry-Front/.env
+    restart: unless-stopped
+    depends_on:
+      - backend
