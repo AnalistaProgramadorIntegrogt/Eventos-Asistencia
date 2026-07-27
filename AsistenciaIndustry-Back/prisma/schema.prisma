@@ -1,0 +1,154 @@
+// Prisma Schema File para el Sistema de Control de Asistencia a Eventos
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  binaryTargets   = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["events"]
+}
+
+model User {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String    @unique
+  fullName  String    @map("full_name")
+  role      String    @default("operator")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  checkins  Checkin[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+  @@schema("events")
+}
+
+model Event {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String
+  description            String?
+  startDate              DateTime  @map("start_date")
+  endDate                DateTime? @map("end_date")
+  location               String?
+  bannerUrl              String?   @map("banner_url")
+  logoUrl                String?   @map("logo_url")
+  status                 String    @default("active")
+  invitationCodeRequired Boolean   @default(false) @map("invitation_code_required")
+  formConfig             Json?     @default("{\"fields\": [{\"id\": \"first_name\", \"label\": \"Nombre\", \"visible\": true, \"required\": true, \"order\": 1}, {\"id\": \"last_name\", \"label\": \"Apellido\", \"visible\": true, \"required\": true, \"order\": 2}, {\"id\": \"email\", \"label\": \"Correo electrónico\", \"visible\": true, \"required\": true, \"order\": 3}, {\"id\": \"company\", \"label\": \"Empresa\", \"visible\": true, \"required\": false, \"order\": 4}, {\"id\": \"job_title\", \"label\": \"Cargo\", \"visible\": true, \"required\": false, \"order\": 5}, {\"id\": \"category\", \"label\": \"Categoría\", \"visible\": true, \"required\": false, \"order\": 6}], \"custom_fields\": [], \"styling\": {\"background_color\": \"#f8fafc\", \"primary_color\": \"#2563eb\", \"text_color\": \"#1e293b\", \"custom_css\": \"\"}}") @map("form_config")
+  confirmationMessage    String?   @default("¡Confirmación Exitosa! Revisa tu correo para acceder a tu entrada.") @map("confirmation_message")
+  emailConfig            Json?     @default("{\"rsvp_subject\": \"Invitación al evento: {event_name}\", \"rsvp_body\": \"\", \"ticket_subject\": \"¡Asistencia Confirmada! Entrada y QR: {event_name}\", \"ticket_body\": \"\"}") @map("email_config")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  deletedAt              DateTime? @map("deleted_at")
+
+  categories  EventCategory[]
+  invitations Invitation[]
+  attendees   Attendee[]
+  checkins    Checkin[]
+  auditLogs   AuditLog[]
+
+  @@map("events")
+  @@schema("events")
+}
+
+model EventCategory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String    @map("event_id") @db.Uuid
+  name      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  invitations Invitation[]
+  attendees   Attendee[]
+
+  @@unique([eventId, name])
+  @@map("event_categories")
+  @@schema("events")
+}
+
+model Invitation {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId    String    @map("event_id") @db.Uuid
+  categoryId String?   @map("category_id") @db.Uuid
+  code       String
+  guestName  String?   @map("guest_name")
+  guestEmail String?   @map("guest_email")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  event     Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category  EventCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  attendees Attendee[]
+
+  @@unique([eventId, code])
+  @@map("invitations")
+  @@schema("events")
+}
+
+model Attendee {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId              String    @map("event_id") @db.Uuid
+  invitationId         String?   @map("invitation_id") @db.Uuid
+  categoryId           String?   @map("category_id") @db.Uuid
+  firstName            String    @map("first_name")
+  lastName             String    @map("last_name")
+  email                String
+  company              String?
+  jobTitle             String?   @map("job_title")
+  additionalData       Json?     @default("{}") @map("additional_data")
+  qrCode               String    @unique @map("qr_code")
+  status               String    @default("pending")
+  isPublicRegistration Boolean   @default(true) @map("is_public_registration")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  deletedAt            DateTime? @map("deleted_at")
+
+  event      Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  invitation Invitation?    @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  category   EventCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  checkins   Checkin[]
+
+  @@map("attendees")
+  @@schema("events")
+}
+
+model Checkin {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId       String   @map("event_id") @db.Uuid
+  attendeeId    String   @map("attendee_id") @db.Uuid
+  scannedBy     String?  @map("scanned_by") @db.Uuid
+  scannedByName String?  @default("Operador") @map("scanned_by_name")
+  checkinType   String   @map("checkin_type")
+  checkedInAt   DateTime @default(now()) @map("checked_in_at")
+
+  event    Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attendee Attendee @relation(fields: [attendeeId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [scannedBy], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, attendeeId])
+  @@map("checkins")
+  @@schema("events")
+}
+
+model AuditLog {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String?  @map("event_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  userName  String?  @default("Sistema/Operador") @map("user_name")
+  action    String
+  targetId  String?  @map("target_id")
+  details   Json?    @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+  @@schema("events")
+}
