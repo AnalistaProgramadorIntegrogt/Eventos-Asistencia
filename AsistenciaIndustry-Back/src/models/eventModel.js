@@ -116,9 +116,6 @@ export const EventModel = {
     return data;
   },
 
-  /**
-   * Crear evento
-   */
   async create(data) {
     const { name, description, start_date, end_date, location, banner_url, logo_url, invitation_code_required, form_config, confirmation_message, email_config } = data;
     const defaultConfig = form_config || {
@@ -139,6 +136,51 @@ export const EventModel = {
       }
     };
 
+    try {
+      if (prisma && prisma.event) {
+        const newEvent = await prisma.event.create({
+          data: {
+            name,
+            description,
+            startDate: start_date ? new Date(start_date) : new Date(),
+            endDate: end_date ? new Date(end_date) : null,
+            location,
+            bannerUrl: banner_url,
+            logoUrl: logo_url,
+            status: 'active',
+            invitationCodeRequired: invitation_code_required || false,
+            formConfig: defaultConfig,
+            emailConfig: email_config || null,
+            confirmationMessage: confirmation_message || '¡Confirmación Exitosa! Revisa tu correo para acceder a tu entrada.',
+            categories: {
+              create: [
+                { name: 'VIP' },
+                { name: 'General' }
+              ]
+            }
+          }
+        });
+        
+        return {
+          ...newEvent,
+          start_date: newEvent.startDate,
+          end_date: newEvent.endDate,
+          banner_url: newEvent.bannerUrl,
+          logo_url: newEvent.logoUrl,
+          invitation_code_required: newEvent.invitationCodeRequired,
+          form_config: newEvent.formConfig,
+          email_config: newEvent.emailConfig,
+          confirmation_message: newEvent.confirmationMessage,
+          created_at: newEvent.createdAt,
+          deleted_at: newEvent.deletedAt
+        };
+      }
+    } catch (err) {
+      console.error("Prisma error in EventModel.create:", err);
+      throw err;
+    }
+
+    // Fallback original a Supabase
     const { data: newEvent, error } = await supabase
       .from('events')
       .insert([

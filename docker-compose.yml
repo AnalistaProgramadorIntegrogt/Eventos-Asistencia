@@ -23,17 +23,24 @@ services:
       dockerfile: Dockerfile
     container_name: eventos_frontend
     ports:
-      - "8081:80"
+      - "8080:80"
     env_file:
       - ./AsistenaciaIndustry-Front/.env
+    labels:
+      caddy: eventos.integro.gt
+      caddy.reverse_proxy: "{{upstreams 80}}"
+    networks:
+      - default
+      - caddy
+      - app-network
     restart: unless-stopped
     depends_on:
       - backend
-    networks:
-      - app-network
 
 networks:
   app-network:
     driver: bridge
     driver_opts:
       com.docker.network.driver.mtu: 1400
+  caddy:
+    external: true

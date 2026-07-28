@@ -1,7 +1,6 @@
-// API Base URL config (Default to localhost:5001 or environment variable / relative)
-const API_BASE_URL = window.location.hostname === 'localhost' && window.location.port !== '5001'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' && window.location.port !== '5001'
   ? 'http://localhost:5001/api'
-  : '/api';
+  : '/api');
 
 /**
  * Get stored Bearer authentication token from localStorage

@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase.js';
 import { UserModel } from '../models/userModel.js';
 import { hasPermission } from '../config/roles.js';
+import { requestContext } from '../config/asyncContext.js';
 
 /**
  * Middleware para validar el token de autenticación (JWT) de Supabase en las peticiones.
@@ -53,7 +54,10 @@ export async function authenticateToken(req, res, next) {
       is_active: userRecord.is_active
     };
 
-    next();
+    // Almacenar el contexto de la petición para RLS
+    requestContext.run({ userId: user.id, role: 'authenticated' }, () => {
+      next();
+    });
   } catch (err) {
     return res.status(500).json({
       success: false,
