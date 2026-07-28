@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge } from 'antd';
-import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge, QRCode } from 'antd';
+import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { api } from '../services/apiService';
 
 const { Title, Text } = Typography;
@@ -17,6 +17,8 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
   const [copiedCode, setCopiedCode] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState([]);
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [qrModalGuest, setQrModalGuest] = useState(null);
   const [form] = Form.useForm();
 
   // Realtime Polling State
@@ -122,6 +124,39 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
     }
   };
 
+  const handleManualCheckin = async (record) => {
+    try {
+      const targetId = record.attendee_id || record.id;
+      const res = await api.checkin.manualMark(selectedEventId, targetId);
+      if (res.success !== false) {
+        message.success(`✅ Asistencia registrada para ${record.guest_name || record.full_name || record.first_name || 'el invitado'}`);
+        fetchSubmissions(true);
+      } else {
+        message.error(res.error || res.message || 'Error registrando asistencia.');
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
+
+  const downloadQRImage = (guestName) => {
+    const container = document.getElementById('guest-qr-download-container');
+    const canvas = container?.querySelector('canvas');
+    if (canvas) {
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      const cleanName = (guestName || 'invitado').replace(/[^a-zA-Z0-9_\-]/g, '_');
+      a.download = `QR_${cleanName}.png`;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      message.success('Código QR descargado exitosamente.');
+    } else {
+      message.error('No se pudo generar la imagen del código QR.');
+    }
+  };
+
   const copyLink = (inv) => {
     const code = inv.invitation_code || inv.code || inv.qr_code;
     const baseLink = `${window.location.origin}/public/events/${selectedEventId}`;
@@ -149,7 +184,7 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
       const q = search.toLowerCase();
       const fullName = (item.full_name || item.guest_name || `${item.first_name || ''} ${item.last_name || ''}`).toLowerCase();
       const email = (item.email || item.guest_email || '').toLowerCase();
-      const company = (item.company || item.guest_company || '').toLowerCase();
+      const company = (item.company || item.guest_company || item.empresa || item.additional_data?.empresa || item.additional_data?.company || '').toLowerCase();
       return fullName.includes(q) || email.includes(q) || company.includes(q);
     }
     return true;
@@ -171,18 +206,35 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
       key: 'full_name',
       render: (text, record) => {
         const name = text || record.guest_name || `${record.first_name || ''} ${record.last_name || ''}`.trim() || 'Invitado';
-        const company = record.company || record.guest_company;
+        const email = record.email || record.guest_email;
         const job = record.job_title;
         return (
           <div>
             <Text strong style={{ display: 'block' }}>{name}</Text>
-            {company && (
-              <Text type="secondary" style={{ fontSize: '0.78rem' }}>
-                {company} {job ? `— ${job}` : ''}
+            {email && (
+              <Text type="secondary" style={{ fontSize: '0.78rem', display: 'block' }}>
+                {email}
+              </Text>
+            )}
+            {job && (
+              <Text type="secondary" style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
+                {job}
               </Text>
             )}
           </div>
         );
+      }
+    },
+    {
+      title: 'Empresa',
+      dataIndex: 'company',
+      key: 'company',
+      render: (text, record) => {
+        const comp = text || record.company || record.guest_company || record.empresa || record.additional_data?.empresa || record.additional_data?.company;
+        if (!comp) {
+          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        }
+        return <Text strong style={{ color: '#1e293b' }}>{comp}</Text>;
       }
     },
     {
@@ -241,10 +293,41 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
       }
     },
     {
+      title: 'Asistencia Manual',
+      key: 'manual_checkin',
+      render: (_, record) => {
+        const hasCheckedIn = record.status === 'checked_in' || record.checked_in === true || (record.checkins && record.checkins.length > 0);
+        if (hasCheckedIn) {
+          return <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontWeight: '600', padding: '4px 10px' }}>🟢 Asistió</Tag>;
+        }
+        return (
+          <Button
+            size="small"
+            type="primary"
+            icon={<CheckCircleOutlined />}
+            onClick={() => handleManualCheckin(record)}
+            style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontWeight: '600' }}
+          >
+            Marcar Asistencia
+          </Button>
+        );
+      }
+    },
+    {
       title: 'Acciones',
       key: 'actions',
       render: (_, record) => (
         <Space size="small">
+          <Tooltip title="Ver y Descargar Código QR">
+            <Button
+              size="small"
+              icon={<QrcodeOutlined style={{ color: '#c3302d' }} />}
+              onClick={() => {
+                setQrModalGuest(record);
+                setQrModalVisible(true);
+              }}
+            />
+          </Tooltip>
           <Tooltip title="Copiar Enlace Personalizado">
             <Button
               size="small"
@@ -439,6 +522,61 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
             <Button icon={<UploadOutlined />}>Seleccionar archivo Excel / CSV</Button>
           </Upload>
         </div>
+      </Modal>
+
+      {/* Modal Ver y Descargar QR de Invitado */}
+      <Modal
+        title={
+          <Space>
+            <QrcodeOutlined style={{ color: '#c3302d', fontSize: '1.2rem' }} />
+            <Text strong style={{ fontSize: '1.1rem' }}>Código QR de Entrada</Text>
+          </Space>
+        }
+        open={qrModalVisible}
+        onCancel={() => setQrModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setQrModalVisible(false)}>
+            Cerrar
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => downloadQRImage(qrModalGuest?.guest_name || qrModalGuest?.full_name || qrModalGuest?.name)}
+            style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: 'bold' }}
+          >
+            Descargar QR (.png)
+          </Button>
+        ]}
+        width={380}
+        centered
+      >
+        {qrModalGuest && (
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <Title level={4} style={{ margin: 0, fontWeight: '700' }}>
+              {qrModalGuest.guest_name || qrModalGuest.full_name || qrModalGuest.first_name || 'Invitado'}
+            </Title>
+            <Text type="secondary" style={{ display: 'block', marginBottom: '20px' }}>
+              {qrModalGuest.guest_email || qrModalGuest.email || ''}
+            </Text>
+
+            <div id="guest-qr-download-container" style={{ display: 'inline-block', padding: '16px', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
+              <QRCode
+                value={qrModalGuest.invitation_code || qrModalGuest.qr_code || qrModalGuest.code || 'N/A'}
+                size={220}
+                color="#111827"
+                bordered={false}
+              />
+            </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <Text type="secondary" style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Código de Acceso:</Text>
+              <Text strong style={{ display: 'block', fontFamily: 'monospace', fontSize: '1.1rem', color: '#c3302d', marginTop: '2px' }}>
+                {qrModalGuest.invitation_code || qrModalGuest.qr_code || qrModalGuest.code || 'N/A'}
+              </Text>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

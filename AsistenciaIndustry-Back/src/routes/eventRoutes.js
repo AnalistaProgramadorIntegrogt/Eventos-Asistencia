@@ -218,6 +218,17 @@ router.delete('/:id/form-config', requirePermission('EDIT_EVENTS'), async (req, 
         primary_color: "#2563eb",
         text_color: "#1e293b",
         custom_css: ""
+      },
+      success_screen: {
+        title: "¡Preregistro Exitoso!",
+        subtitle: "Tu registro para {event_name} se ha completado correctamente.",
+        alert_title: "Revisa tu bandeja de correo electrónico",
+        alert_description: "Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail.",
+        title_color: "#000000",
+        subtitle_color: "#59585a",
+        alert_bg_color: "#f8fafc",
+        alert_border_color: "#cbd5e1",
+        alert_text_color: "#1e293b"
       }
     };
 
@@ -255,6 +266,17 @@ router.post('/:id/form-config/restore', requirePermission('EDIT_EVENTS'), async 
         primary_color: "#2563eb",
         text_color: "#1e293b",
         custom_css: ""
+      },
+      success_screen: {
+        title: "¡Preregistro Exitoso!",
+        subtitle: "Tu registro para {event_name} se ha completado correctamente.",
+        alert_title: "Revisa tu bandeja de correo electrónico",
+        alert_description: "Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail.",
+        title_color: "#000000",
+        subtitle_color: "#59585a",
+        alert_bg_color: "#f8fafc",
+        alert_border_color: "#cbd5e1",
+        alert_text_color: "#1e293b"
       }
     };
 

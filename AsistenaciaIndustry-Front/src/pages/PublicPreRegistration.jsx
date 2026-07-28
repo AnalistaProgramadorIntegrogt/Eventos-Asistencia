@@ -194,23 +194,40 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
             {result ? (
               <Result
                 status="success"
-                title={<Title level={3} style={{ margin: 0, fontWeight: '700', color: styling.text_color || '#000000' }}>¡Preregistro Exitoso!</Title>}
-                subTitle={result.message || `Tu registro para ${eventData?.name || 'el evento'} se ha completado correctamente.`}
+                title={
+                  <Title level={3} style={{ margin: 0, fontWeight: '700', color: (eventData.form_config?.success_screen?.title_color) || styling.text_color || '#000000' }}>
+                    {(eventData.form_config?.success_screen?.title) || '¡Preregistro Exitoso!'}
+                  </Title>
+                }
+                subTitle={
+                  <Text style={{ display: 'block', color: (eventData.form_config?.success_screen?.subtitle_color) || '#59585a', fontSize: '0.95rem', marginTop: '6px' }}>
+                    {((eventData.form_config?.success_screen?.subtitle) || `Tu registro para {event_name} se ha completado correctamente.`).replace('{event_name}', eventData?.name || 'el evento')}
+                  </Text>
+                }
                 extra={[
                   <Alert
                     key="email-alert"
                     type="info"
                     showIcon
                     icon={<MailOutlined style={{ fontSize: '1.4rem', color: styling.primary_color || '#c3302d' }} />}
-                    message="Revisa tu bandeja de correo electrónico"
+                    message={
+                      <Text strong style={{ color: (eventData.form_config?.success_screen?.alert_text_color) || '#1e293b' }}>
+                        {(eventData.form_config?.success_screen?.alert_title) || 'Revisa tu bandeja de correo electrónico'}
+                      </Text>
+                    }
                     description={
-                      <span>
-                        Te hemos enviado tu boleto oficial de ingreso con tu <strong>Código QR personalizado</strong> directamente a tu e-mail.
-                        <br /><br />
-                        Por favor revisa tu <strong>bandeja de entrada</strong> (o tu carpeta de <i>correo no deseado / spam</i>). Deberás presentar dicho Código QR al ingresar al evento.
+                      <span style={{ color: (eventData.form_config?.success_screen?.alert_text_color) || '#1e293b' }}>
+                        {(eventData.form_config?.success_screen?.alert_description) || 'Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail. Por favor revisa tu bandeja de entrada (o correo no deseado). Deberás presentar dicho Código QR al ingresar al evento.'}
                       </span>
                     }
-                    style={{ textAlign: 'left', borderRadius: '10px', padding: '18px 22px', marginTop: '12px', background: '#f8fafc', border: '1px solid #cbd5e1' }}
+                    style={{
+                      textAlign: 'left',
+                      borderRadius: '10px',
+                      padding: '18px 22px',
+                      marginTop: '12px',
+                      background: (eventData.form_config?.success_screen?.alert_bg_color) || '#f8fafc',
+                      border: `1px solid ${(eventData.form_config?.success_screen?.alert_border_color) || '#cbd5e1'}`
+                    }}
                   />
                 ]}
               />

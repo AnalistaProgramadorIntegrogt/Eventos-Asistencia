@@ -83,7 +83,7 @@ export async function initAdminUser() {
     // 4. Asegurar que los roles base existan en la tabla de roles
     const RoleModel = (await import('../models/roleModel.js')).RoleModel;
     const { AVAILABLE_PERMISSIONS } = await import('../config/roles.js');
-    const allPerms = Object.keys(AVAILABLE_PERMISSIONS);
+    const allPerms = AVAILABLE_PERMISSIONS.map(p => p.id);
     
     for (const roleName of ['super_admin', 'admin', 'operator']) {
       const existingRole = await RoleModel.findByName(roleName);

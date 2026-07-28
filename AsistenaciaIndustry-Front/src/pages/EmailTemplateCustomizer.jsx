@@ -290,9 +290,8 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
     message.success(`Añadido ${tag}`);
   };
 
-  // Build standalone Full HTML Email Document with logoBase64 embedded directly
   const buildFullEmailDoc = (rawInnerContent) => {
-    const logoUrl = logoBase64;
+    const logoUrl = 'https://integro.gt/wp-content/uploads/2024/01/Logo-blanco.png';
 
     const qrImageHtml = `
       <div style="text-align: center; margin: 24px 0;">

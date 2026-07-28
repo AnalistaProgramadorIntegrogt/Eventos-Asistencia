@@ -8,7 +8,7 @@ export const InvitationModel = {
   async findByEventId(eventId, { search, includeDeleted = false, onlyDeleted = false } = {}) {
     let query = supabase
       .from('invitations')
-      .select('*, event_categories(name)')
+      .select('*, event_categories(name), attendees(company, job_title)')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
 

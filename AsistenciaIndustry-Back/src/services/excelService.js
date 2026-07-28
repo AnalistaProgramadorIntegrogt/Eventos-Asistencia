@@ -18,30 +18,54 @@ function normalizeKey(str) {
  * Detecta automáticamente encabezados en español e inglés.
  */
 export function parseGuestsFromExcelBuffer(buffer) {
-  const workbook = xlsx.read(buffer, { type: 'buffer' });
+  const workbook = xlsx.read(buffer, { type: 'buffer', raw: false });
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
   
-  const rawData = xlsx.utils.sheet_to_json(worksheet, { defval: '' });
+  const rawData = xlsx.utils.sheet_to_json(worksheet, { defval: '', raw: false });
   
   const guests = rawData.map((row) => {
     // Crear un mapa con llaves normalizadas de la fila actual
     const normalizedRow = {};
     for (const [key, value] of Object.entries(row)) {
-      normalizedRow[normalizeKey(key)] = String(value).trim();
+      if (key !== undefined && value !== undefined && value !== null) {
+        const normK = normalizeKey(key);
+        if (normK) normalizedRow[normK] = String(value).trim();
+      }
     }
 
     // 1. Detectar Nombre / Apellido
-    const firstName = normalizedRow['nombre'] || normalizedRow['nombres'] || normalizedRow['first_name'] || normalizedRow['firstname'] || normalizedRow['guest_name'] || normalizedRow['guest'] || normalizedRow['invitado'] || normalizedRow['asistente'] || normalizedRow['name'] || '';
-    const lastName = normalizedRow['apellido'] || normalizedRow['apellidos'] || normalizedRow['last_name'] || normalizedRow['lastname'] || normalizedRow['surname'] || '';
+    let firstName = normalizedRow['nombre'] || normalizedRow['nombres'] || normalizedRow['first_name'] || normalizedRow['firstname'] || normalizedRow['guest_name'] || normalizedRow['guest'] || normalizedRow['invitado'] || normalizedRow['asistente'] || normalizedRow['name'] || '';
+    let lastName = normalizedRow['apellido'] || normalizedRow['apellidos'] || normalizedRow['last_name'] || normalizedRow['lastname'] || normalizedRow['surname'] || '';
     
-    let fullName = normalizedRow['nombre completo'] || normalizedRow['fullname'] || normalizedRow['full_name'] || '';
-    if (!fullName) {
+    let fullName = normalizedRow['nombre completo'] || normalizedRow['fullname'] || normalizedRow['full_name'] || normalizedRow['nombre y apellido'] || normalizedRow['nombres y apellidos'] || normalizedRow['nombre y apellidos'] || normalizedRow['nombre del invitado'] || normalizedRow['invitado'] || normalizedRow['invitados'] || normalizedRow['participante'] || normalizedRow['participantes'] || normalizedRow['persona'] || normalizedRow['contacto'] || '';
+
+    if (!fullName && (firstName || lastName)) {
       fullName = `${firstName} ${lastName}`.trim();
     }
 
     // 2. Detectar Correo / Email
-    const email = normalizedRow['correo'] || normalizedRow['email'] || normalizedRow['correo electronico'] || normalizedRow['correo-electronico'] || normalizedRow['guest_email'] || normalizedRow['mail'] || normalizedRow['e-mail'] || '';
+    let email = normalizedRow['correo'] || normalizedRow['email'] || normalizedRow['correo electronico'] || normalizedRow['correo-electronico'] || normalizedRow['guest_email'] || normalizedRow['mail'] || normalizedRow['e-mail'] || normalizedRow['direccion de correo'] || normalizedRow['direccion de correo electronico'] || normalizedRow['email address'] || '';
+
+    // Detección Inteligente de Fallback para Email (buscar cualquier celda que contenga @)
+    if (!email) {
+      for (const val of Object.values(normalizedRow)) {
+        if (val && typeof val === 'string' && val.includes('@') && val.includes('.')) {
+          email = val.trim();
+          break;
+        }
+      }
+    }
+
+    // Detección Inteligente de Fallback para Nombre (si no hubo coincidencia de encabezado directo)
+    if (!fullName && !firstName) {
+      for (const [key, val] of Object.entries(normalizedRow)) {
+        if (val && typeof val === 'string' && val.length >= 2 && !val.includes('@') && !/^\d+$/.test(val)) {
+          fullName = val.trim();
+          break;
+        }
+      }
+    }
 
     // 3. Detectar Categoría
     const category = normalizedRow['categoria'] || normalizedRow['category'] || normalizedRow['tipo'] || normalizedRow['category_name'] || 'General';
@@ -50,17 +74,19 @@ export function parseGuestsFromExcelBuffer(buffer) {
     const company = normalizedRow['empresa'] || normalizedRow['company'] || normalizedRow['organizacion'] || '';
     const jobTitle = normalizedRow['cargo'] || normalizedRow['puesto'] || normalizedRow['job_title'] || normalizedRow['job title'] || normalizedRow['title'] || '';
 
+    const finalGuestName = fullName || firstName || email || 'Invitado VIP';
+
     return {
-      first_name: firstName || fullName.split(' ')[0] || '',
-      last_name: lastName || fullName.split(' ').slice(1).join(' ') || '',
-      guest_name: fullName || firstName || email,
+      first_name: firstName || finalGuestName.split(' ')[0] || 'Invitado',
+      last_name: lastName || finalGuestName.split(' ').slice(1).join(' ') || '',
+      guest_name: finalGuestName,
       guest_email: email,
       company,
       job_title: jobTitle,
       category: category || 'General',
       code: generateUniqueInvitationCode('INV')
     };
-  }).filter(g => g.guest_name || g.guest_email);
+  }).filter(g => Boolean(g.guest_name || g.guest_email));
 
   return guests;
 }

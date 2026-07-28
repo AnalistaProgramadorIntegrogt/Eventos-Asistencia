@@ -13,7 +13,7 @@ import {
   UserOutlined,
   TagOutlined
 } from '@ant-design/icons';
-import { api, getStoredUser, clearAuthSession } from './services/apiService';
+import { api, getStoredUser, setAuthSession, getAuthToken, clearAuthSession } from './services/apiService';
 import logoImg from './assets/Logo.png';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -32,16 +32,28 @@ import AuthCallback from './pages/AuthCallback';
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
 
+function getInitialTab(user) {
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const perms = user?.permissions || [];
+  const has = (p) => isAdmin || perms.includes(p);
+
+  if (has('VIEW_DASHBOARD')) return 'dashboard';
+  if (has('VIEW_EVENTS') || has('CREATE_EVENTS') || has('EDIT_EVENTS')) return 'events';
+  if (has('MANUAL_CHECKIN') || has('VIEW_GUESTS') || has('MANAGE_GUESTS')) return 'manual-checkin';
+  if (has('VIEW_USERS') || has('MANAGE_USERS')) return 'users';
+  return 'manual-checkin';
+}
+
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [currentUser, setCurrentUser] = useState(getStoredUser());
+  const [currentTab, setCurrentTab] = useState(() => getInitialTab(currentUser));
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [eventsList, setEventsList] = useState([]);
-  const [currentUser, setCurrentUser] = useState(getStoredUser());
 
   const pathname = window.location.pathname;
   const isPublicRegister = pathname.startsWith('/register/') || pathname.startsWith('/public/events/');
   const isPublicScan = pathname.startsWith('/scan/') || pathname.startsWith('/checkin/');
-  const isAuthCallback = pathname.startsWith('/auth/callback');
+  const isAuthCallback = pathname.startsWith('/auth/callback') || window.location.hash.includes('access_token=');
 
   const fetchEvents = () => {
     api.events.list()
@@ -55,6 +67,20 @@ export default function App() {
       })
       .catch(console.error);
   };
+
+  useEffect(() => {
+    // Sincronizar automáticamente el usuario y permisos desde la BD al cargar
+    if (getAuthToken()) {
+      api.auth.me()
+        .then((res) => {
+          if (res.success && res.data) {
+            setAuthSession(getAuthToken(), res.data);
+            setCurrentUser(res.data);
+          }
+        })
+        .catch((err) => console.error('Error sincronizando perfil de usuario:', err));
+    }
+  }, []);
 
   useEffect(() => {
     if (currentUser) {
@@ -85,6 +111,7 @@ export default function App() {
     if (pathname === '/events/auth/login') {
       return <LoginPage onLoginSuccess={(user) => {
         setCurrentUser(user);
+        setCurrentTab(getInitialTab(user));
         window.history.pushState({}, '', '/');
       }} />;
     } else {
@@ -96,28 +123,37 @@ export default function App() {
   const selectedEvent = eventsList.find(e => e.id === selectedEventId);
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const hasPerm = (perm) => isAdmin || (currentUser?.permissions && currentUser.permissions.includes(perm));
+
+  const adminChildren = [];
+  if (hasPerm('VIEW_DASHBOARD')) {
+    adminChildren.push({ key: 'dashboard', icon: <DashboardOutlined />, label: 'Tablero / Dashboard' });
+  }
+  if (hasPerm('VIEW_EVENTS') || hasPerm('CREATE_EVENTS') || hasPerm('EDIT_EVENTS')) {
+    adminChildren.push({ key: 'events', icon: <CalendarOutlined />, label: 'Catálogo de Eventos' });
+  }
+  if (hasPerm('VIEW_USERS') || hasPerm('MANAGE_USERS')) {
+    adminChildren.push({ key: 'users', icon: <SafetyCertificateOutlined />, label: 'Directorio de Usuarios' });
+  }
+
+  const checkinChildren = [];
+  if (hasPerm('MANUAL_CHECKIN') || hasPerm('VIEW_GUESTS') || hasPerm('MANAGE_GUESTS') || hasPerm('SCAN_QR')) {
+    checkinChildren.push({ key: 'manual-checkin', icon: <SearchOutlined />, label: 'Búsqueda y Asistencia' });
+  }
 
   const menuItems = [
-    ...(isAdmin ? [{
+    ...(adminChildren.length > 0 ? [{
       key: 'grp-admin',
       label: 'ADMINISTRACIÓN',
       type: 'group',
-      children: [
-        { key: 'dashboard', icon: <DashboardOutlined />, label: 'Tablero / Dashboard' },
-        { key: 'events', icon: <CalendarOutlined />, label: 'Catálogo de Eventos' },
-        { key: 'users', icon: <SafetyCertificateOutlined />, label: 'Directorio de Usuarios' }
-      ]
+      children: adminChildren
     }] : []),
-    {
+    ...(checkinChildren.length > 0 ? [{
       key: 'grp-checkin',
       label: 'CONTROL DE INGRESO',
       type: 'group',
-      children: [
-        { key: 'scanner', icon: <QrcodeOutlined />, label: 'Escanear QR' },
-        { key: 'manual-checkin', icon: <SearchOutlined />, label: 'Búsqueda y Asistencia' },
-        { key: 'public-preview', icon: <ExportOutlined />, label: 'Vista Previa Pública' }
-      ]
-    }
+      children: checkinChildren
+    }] : [])
   ];
 
   const userMenuItems = [
@@ -252,9 +288,9 @@ export default function App() {
           {/* Content */}
           <Content style={{ padding: '32px', overflowY: 'auto' }}>
             <ErrorBoundary key={currentTab}>
-              {currentTab === 'dashboard' && <AdminDashboard selectedEventId={selectedEventId} />}
-              {currentTab === 'events' && <EventManagement selectedEventId={selectedEventId} setSelectedEventId={setSelectedEventId} />}
-              {currentTab === 'users' && <UserManagement currentUser={currentUser} />}
+              {currentTab === 'dashboard' && hasPerm('VIEW_DASHBOARD') && <AdminDashboard selectedEventId={selectedEventId} />}
+              {currentTab === 'events' && (hasPerm('VIEW_EVENTS') || hasPerm('CREATE_EVENTS') || hasPerm('EDIT_EVENTS')) && <EventManagement selectedEventId={selectedEventId} setSelectedEventId={setSelectedEventId} />}
+              {currentTab === 'users' && (hasPerm('VIEW_USERS') || hasPerm('MANAGE_USERS')) && <UserManagement currentUser={currentUser} />}
               {currentTab === 'scanner' && <OperatorCheckIn selectedEventId={selectedEventId} currentUser={currentUser} />}
               {currentTab === 'manual-checkin' && <ManualCheckIn selectedEventId={selectedEventId} currentUser={currentUser} />}
               {currentTab === 'public-preview' && <PublicPreRegistration eventId={selectedEventId} />}

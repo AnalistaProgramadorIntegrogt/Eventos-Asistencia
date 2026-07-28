@@ -10,7 +10,7 @@ import {
   EditOutlined, ReloadOutlined, MailOutlined, GlobalOutlined,
   PictureOutlined, UsergroupAddOutlined, ArrowLeftOutlined, SlidersOutlined, QrcodeOutlined
 } from '@ant-design/icons';
-import { api } from '../services/apiService';
+import { api, getStoredUser } from '../services/apiService';
 import GuestManagement from './GuestManagement';
 import EmailTemplateCustomizer from './EmailTemplateCustomizer';
 import FormCustomizer from './FormCustomizer';
@@ -34,6 +34,10 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrModalData, setQrModalData] = useState({ url: '', eventName: '' });
   const [form] = Form.useForm();
+
+  const currentUser = getStoredUser();
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const hasPerm = (perm) => isAdmin || (currentUser?.permissions && currentUser.permissions.includes(perm));
 
   // ─── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -395,13 +399,15 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
               </div>
 
               <Space wrap>
-                <Button
-                  icon={<EditOutlined />}
-                  onClick={() => openEdit(managingGuestsEvent)}
-                  style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'transparent', color: '#ffffff', fontWeight: '600' }}
-                >
-                  Editar Evento
-                </Button>
+                {hasPerm('EDIT_EVENTS') && (
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => openEdit(managingGuestsEvent)}
+                    style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'transparent', color: '#ffffff', fontWeight: '600' }}
+                  >
+                    Editar Evento
+                  </Button>
+                )}
                 <Button
                   icon={<LinkOutlined />}
                   onClick={() => copyLink(managingGuestsEvent.id)}
@@ -428,7 +434,7 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
           size="large"
           style={{ marginTop: '20px' }}
           items={[
-            {
+            ...(hasPerm('MANAGE_GUESTS') || hasPerm('VIEW_GUESTS') ? [{
               key: 'guests',
               label: (
                 <Space>
@@ -437,8 +443,8 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                 </Space>
               ),
               children: <GuestManagement selectedEventId={managingGuestsEvent.id} embedded={true} />
-            },
-            {
+            }] : []),
+            ...(hasPerm('CUSTOMIZE_FORM') ? [{
               key: 'form',
               label: (
                 <Space>
@@ -447,8 +453,8 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                 </Space>
               ),
               children: <FormCustomizer selectedEventId={managingGuestsEvent.id} embedded={true} />
-            },
-            {
+            }] : []),
+            ...(hasPerm('CUSTOMIZE_SCANNER') ? [{
               key: 'scanner-designer',
               label: (
                 <Space>
@@ -457,8 +463,8 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                 </Space>
               ),
               children: <QRScannerCustomizer selectedEventId={managingGuestsEvent.id} embedded={true} />
-            },
-            {
+            }] : []),
+            ...(hasPerm('CUSTOMIZE_EMAIL') ? [{
               key: 'email',
               label: (
                 <Space>
@@ -467,7 +473,7 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                 </Space>
               ),
               children: <EmailTemplateCustomizer selectedEventId={managingGuestsEvent.id} />
-            }
+            }] : [])
           ]}
         />
 
@@ -493,15 +499,17 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
           <Tooltip title="Recargar lista">
             <Button icon={<ReloadOutlined />} onClick={fetchEvents} loading={loading} />
           </Tooltip>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            size="large"
-            onClick={openCreate}
-            style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
-          >
-            Crear Nuevo Evento
-          </Button>
+          {hasPerm('CREATE_EVENTS') && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={openCreate}
+              style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
+            >
+              Crear Nuevo Evento
+            </Button>
+          )}
         </Space>
       </div>
 
@@ -632,15 +640,17 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                       Gestionar Invitados
                     </Button>
 
-                    <Tooltip title="Editar Evento">
-                      <Button
-                        icon={<EditOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEdit(evt);
-                        }}
-                      />
-                    </Tooltip>
+                    {hasPerm('EDIT_EVENTS') && (
+                      <Tooltip title="Editar Evento">
+                        <Button
+                          icon={<EditOutlined />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(evt);
+                          }}
+                        />
+                      </Tooltip>
+                    )}
 
                     <Tooltip title="Copiar enlace de preregistro público">
                       <Button
@@ -666,22 +676,24 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
                       />
                     </Tooltip>
 
-                    <Popconfirm
-                      title="Eliminar evento"
-                      description={`¿Confirma eliminar "${evt.name}"? Esta acción no se puede deshacer.`}
-                      onConfirm={() => handleDelete(evt.id, evt.name)}
-                      okText="Sí, eliminar"
-                      cancelText="Cancelar"
-                      okButtonProps={{ danger: true }}
-                    >
-                      <Tooltip title="Eliminar">
-                        <Button
-                          icon={<DeleteOutlined />}
-                          danger
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Tooltip>
-                    </Popconfirm>
+                    {hasPerm('DELETE_EVENTS') && (
+                      <Popconfirm
+                        title="Eliminar evento"
+                        description={`¿Confirma eliminar "${evt.name}"? Esta acción no se puede deshacer.`}
+                        onConfirm={() => handleDelete(evt.id, evt.name)}
+                        okText="Sí, eliminar"
+                        cancelText="Cancelar"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Tooltip title="Eliminar">
+                          <Button
+                            icon={<DeleteOutlined />}
+                            danger
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </Tooltip>
+                      </Popconfirm>
+                    )}
                   </div>
                 </Card>
               </Col>

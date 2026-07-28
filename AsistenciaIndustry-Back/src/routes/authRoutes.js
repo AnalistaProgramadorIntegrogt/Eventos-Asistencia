@@ -47,6 +47,7 @@ router.post('/login', async (req, res) => {
           email: user.email,
           full_name: userRecord?.full_name || user.user_metadata?.full_name || user.email,
           role: userRecord?.role || user.user_metadata?.role || 'operator',
+          permissions: userRecord?.permissions || [],
           is_active: userRecord?.is_active ?? true
         }
       }

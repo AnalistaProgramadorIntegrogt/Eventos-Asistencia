@@ -18,6 +18,10 @@ export const AVAILABLE_PERMISSIONS = [
 
   { id: 'VIEW_DASHBOARD', name: 'Ver Dashboard', category: 'Dashboard' },
   { id: 'MANAGE_USERS', name: 'Administrar Usuarios', category: 'Administración' },
+
+  { id: 'CUSTOMIZE_FORM', name: 'Diseñar Formulario', category: 'Personalización' },
+  { id: 'CUSTOMIZE_SCANNER', name: 'Diseñar Escáner QR', category: 'Personalización' },
+  { id: 'CUSTOMIZE_EMAIL', name: 'Plantillas de Correo', category: 'Personalización' },
 ];
 
 // Mapa de permisos escalable
@@ -41,7 +45,12 @@ export const PERMISSIONS = {
   MANUAL_CHECKIN: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.OPERATOR],
 
   // Dashboard / Reportes
-  VIEW_DASHBOARD: [ROLES.SUPER_ADMIN, ROLES.ADMIN]
+  VIEW_DASHBOARD: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+
+  // Personalización
+  CUSTOMIZE_FORM: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  CUSTOMIZE_SCANNER: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  CUSTOMIZE_EMAIL: [ROLES.SUPER_ADMIN, ROLES.ADMIN]
 };
 
 /**

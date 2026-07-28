@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import {
   Card, Row, Col, Form, Input, Checkbox, Button, Select, Switch,
   Typography, Space, Spin, message, Tag, Divider, Empty, Tooltip,
-  Badge, Alert, Collapse
+  Badge, Alert, Collapse, Segmented
 } from 'antd';
 import {
   SaveOutlined, EyeOutlined, LayoutOutlined, BgColorsOutlined,
   PlusOutlined, DeleteOutlined, CheckCircleOutlined,
-  FormOutlined, EditOutlined
+  FormOutlined, EditOutlined, MailOutlined
 } from '@ant-design/icons';
 import { api } from '../services/apiService';
 import logoImg from '../assets/Logo.png';
@@ -42,6 +42,17 @@ const DEFAULT_FORM_CONFIG = {
     primary_color: '#c3302d',
     text_color: '#000000',
     custom_css: ''
+  },
+  success_screen: {
+    title: '¡Preregistro Exitoso!',
+    subtitle: 'Tu registro para {event_name} se ha completado correctamente.',
+    alert_title: 'Revisa tu bandeja de correo electrónico',
+    alert_description: 'Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail. Por favor revisa tu bandeja de entrada (o correo no deseado). Deberás presentar dicho Código QR al ingresar al evento.',
+    title_color: '#000000',
+    subtitle_color: '#59585a',
+    alert_bg_color: '#f8fafc',
+    alert_border_color: '#cbd5e1',
+    alert_text_color: '#1e293b'
   }
 };
 
@@ -55,6 +66,7 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
   const [saved, setSaved] = useState(false);
 
   const [formConfig, setFormConfig] = useState(DEFAULT_FORM_CONFIG);
+  const [previewMode, setPreviewMode] = useState('form'); // 'form' | 'success'
 
   // New custom field state with allow_other option toggle
   const [newField, setNewField] = useState({ label: '', type: 'text', required: false, allow_other: false, placeholder: '', rawOptions: '' });
@@ -636,6 +648,242 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                   </Col>
                 </Row>
               </Card>
+
+              {/* Success Screen Customization Panel */}
+              <Card
+                title={
+                  <Space>
+                    <CheckCircleOutlined style={{ color: '#10b981' }} />
+                    <span style={{ fontWeight: '700' }}>Mensaje de Confirmación Post-Envío (Textos y Colores)</span>
+                  </Space>
+                }
+                bordered={false}
+                style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRadius: '10px' }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Título del Mensaje de Éxito:</Text>
+                    <Input
+                      value={formConfig.success_screen?.title || ''}
+                      onChange={e => {
+                        setFormConfig({
+                          ...formConfig,
+                          success_screen: { ...formConfig.success_screen, title: e.target.value }
+                        });
+                        setSaved(false);
+                      }}
+                      placeholder="Ej: ¡Preregistro Exitoso!"
+                      style={{ marginTop: '4px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Subtítulo / Mensaje Secundario (Admite {'{event_name}'}):</Text>
+                    <Input.TextArea
+                      rows={2}
+                      value={formConfig.success_screen?.subtitle || ''}
+                      onChange={e => {
+                        setFormConfig({
+                          ...formConfig,
+                          success_screen: { ...formConfig.success_screen, subtitle: e.target.value }
+                        });
+                        setSaved(false);
+                      }}
+                      placeholder="Ej: Tu registro para {event_name} se ha completado correctamente."
+                      style={{ marginTop: '4px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Encabezado de Alerta de Correo:</Text>
+                    <Input
+                      value={formConfig.success_screen?.alert_title || ''}
+                      onChange={e => {
+                        setFormConfig({
+                          ...formConfig,
+                          success_screen: { ...formConfig.success_screen, alert_title: e.target.value }
+                        });
+                        setSaved(false);
+                      }}
+                      placeholder="Ej: Revisa tu bandeja de correo electrónico"
+                      style={{ marginTop: '4px' }}
+                    />
+                  </div>
+
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Descripción de Alerta de Correo:</Text>
+                    <Input.TextArea
+                      rows={3}
+                      value={formConfig.success_screen?.alert_description || ''}
+                      onChange={e => {
+                        setFormConfig({
+                          ...formConfig,
+                          success_screen: { ...formConfig.success_screen, alert_description: e.target.value }
+                        });
+                        setSaved(false);
+                      }}
+                      placeholder="Ej: Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado..."
+                      style={{ marginTop: '4px' }}
+                    />
+                  </div>
+
+                  <Text strong style={{ display: 'block', marginTop: '8px', fontSize: '0.88rem', color: '#0f172a' }}>
+                    🎨 Paleta de Colores de la Pantalla de Éxito:
+                  </Text>
+
+                  <Row gutter={[12, 12]}>
+                    <Col span={12}>
+                      <Text style={{ fontSize: '0.78rem', color: '#64748b' }}>Color Título Éxito:</Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <input
+                          type="color"
+                          value={formConfig.success_screen?.title_color || '#000000'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, title_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          style={{ width: '28px', height: '28px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
+                        />
+                        <Input
+                          value={formConfig.success_screen?.title_color || '#000000'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, title_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          size="small"
+                          style={{ width: '85px', fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </Col>
+
+                    <Col span={12}>
+                      <Text style={{ fontSize: '0.78rem', color: '#64748b' }}>Color Subtítulo:</Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <input
+                          type="color"
+                          value={formConfig.success_screen?.subtitle_color || '#59585a'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, subtitle_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          style={{ width: '28px', height: '28px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
+                        />
+                        <Input
+                          value={formConfig.success_screen?.subtitle_color || '#59585a'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, subtitle_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          size="small"
+                          style={{ width: '85px', fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </Col>
+
+                    <Col span={12}>
+                      <Text style={{ fontSize: '0.78rem', color: '#64748b' }}>Fondo Alerta Correo:</Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <input
+                          type="color"
+                          value={formConfig.success_screen?.alert_bg_color || '#f8fafc'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_bg_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          style={{ width: '28px', height: '28px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
+                        />
+                        <Input
+                          value={formConfig.success_screen?.alert_bg_color || '#f8fafc'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_bg_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          size="small"
+                          style={{ width: '85px', fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </Col>
+
+                    <Col span={12}>
+                      <Text style={{ fontSize: '0.78rem', color: '#64748b' }}>Borde Alerta Correo:</Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <input
+                          type="color"
+                          value={formConfig.success_screen?.alert_border_color || '#cbd5e1'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_border_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          style={{ width: '28px', height: '28px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
+                        />
+                        <Input
+                          value={formConfig.success_screen?.alert_border_color || '#cbd5e1'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_border_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          size="small"
+                          style={{ width: '85px', fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </Col>
+
+                    <Col span={12}>
+                      <Text style={{ fontSize: '0.78rem', color: '#64748b' }}>Texto Alerta Correo:</Text>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <input
+                          type="color"
+                          value={formConfig.success_screen?.alert_text_color || '#1e293b'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_text_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          style={{ width: '28px', height: '28px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent' }}
+                        />
+                        <Input
+                          value={formConfig.success_screen?.alert_text_color || '#1e293b'}
+                          onChange={e => {
+                            setFormConfig({
+                              ...formConfig,
+                              success_screen: { ...formConfig.success_screen, alert_text_color: e.target.value }
+                            });
+                            setSaved(false);
+                          }}
+                          size="small"
+                          style={{ width: '85px', fontFamily: 'monospace' }}
+                        />
+                      </div>
+                    </Col>
+                  </Row>
+                </Space>
+              </Card>
             </Space>
           </Col>
 
@@ -692,76 +940,127 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
 
                     {/* Form Fields Preview Container */}
                     <div style={{ padding: '24px 20px', backgroundColor: formConfig.styling.card_bg_color || '#ffffff' }}>
-                      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                        <Title level={4} style={{ color: formConfig.styling.text_color || '#000000', margin: '0 0 4px', fontWeight: '800' }}>
-                          {eventData?.name || 'Nombre del Evento'}<span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>.</span>
-                        </Title>
-                        <Text style={{ color: '#59585a', fontSize: '0.82rem' }}>
-                          {eventData?.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
-                        </Text>
+
+                      {/* Header Segmented Switcher for Preview Mode */}
+                      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                        <Segmented
+                          size="small"
+                          value={previewMode}
+                          onChange={setPreviewMode}
+                          options={[
+                            { label: '📋 Formulario', value: 'form' },
+                            { label: '🎉 Mensaje de Éxito', value: 'success' }
+                          ]}
+                        />
                       </div>
 
-                      {visibleFields.map((field) => (
-                        <div key={field.id} style={{ marginBottom: '14px' }}>
-                          <Text
-                            strong
-                            style={{
-                              display: 'block',
-                              color: formConfig.styling.text_color || '#000000',
-                              marginBottom: '4px',
-                              fontSize: '0.83rem'
-                            }}
-                          >
-                            {field.label} {field.required && <span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>*</span>}
+                      {previewMode === 'success' ? (
+                        <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                          <CheckCircleOutlined style={{ fontSize: '3.2rem', color: '#10b981', marginBottom: '16px' }} />
+                          <Title level={4} style={{ margin: '0 0 6px', fontWeight: '800', color: formConfig.success_screen?.title_color || '#000000' }}>
+                            {formConfig.success_screen?.title || '¡Preregistro Exitoso!'}
+                          </Title>
+                          <Text style={{ display: 'block', fontSize: '0.88rem', color: formConfig.success_screen?.subtitle_color || '#59585a', marginBottom: '20px' }}>
+                            {(formConfig.success_screen?.subtitle || 'Tu registro para {event_name} se ha completado correctamente.').replace('{event_name}', eventData?.name || 'el evento')}
                           </Text>
 
-                          {field.type === 'select' || field.type === 'select_with_other' ? (
-                            <div>
-                              <Select
-                                placeholder={field.placeholder || `Seleccionar ${field.label.toLowerCase()}...`}
-                                style={{ width: '100%' }}
-                                onChange={(val) => {
-                                  setPreviewOtherValues({
-                                    ...previewOtherValues,
-                                    [field.id]: val === 'Otro (especifique)'
-                                  });
+                          <div
+                            style={{
+                              textAlign: 'left',
+                              borderRadius: '10px',
+                              padding: '16px',
+                              background: formConfig.success_screen?.alert_bg_color || '#f8fafc',
+                              border: `1px solid ${formConfig.success_screen?.alert_border_color || '#cbd5e1'}`,
+                              color: formConfig.success_screen?.alert_text_color || '#1e293b'
+                            }}
+                          >
+                            <Space align="start">
+                              <MailOutlined style={{ fontSize: '1.3rem', color: formConfig.styling.primary_color || '#c3302d', marginTop: '2px' }} />
+                              <div>
+                                <Text strong style={{ display: 'block', color: formConfig.success_screen?.alert_text_color || '#1e293b', marginBottom: '4px' }}>
+                                  {formConfig.success_screen?.alert_title || 'Revisa tu bandeja de correo electrónico'}
+                                </Text>
+                                <Text style={{ fontSize: '0.8rem', color: formConfig.success_screen?.alert_text_color || '#1e293b', lineHeight: '1.5' }}>
+                                  {formConfig.success_screen?.alert_description || 'Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail.'}
+                                </Text>
+                              </div>
+                            </Space>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                            <Title level={4} style={{ color: formConfig.styling.text_color || '#000000', margin: '0 0 4px', fontWeight: '800' }}>
+                              {eventData?.name || 'Nombre del Evento'}<span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>.</span>
+                            </Title>
+                            <Text style={{ color: '#59585a', fontSize: '0.82rem' }}>
+                              {eventData?.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
+                            </Text>
+                          </div>
+
+                          {visibleFields.map((field) => (
+                            <div key={field.id} style={{ marginBottom: '14px' }}>
+                              <Text
+                                strong
+                                style={{
+                                  display: 'block',
+                                  color: formConfig.styling.text_color || '#000000',
+                                  marginBottom: '4px',
+                                  fontSize: '0.83rem'
                                 }}
-                                options={[
-                                  ...(field.options || []).map(o => ({ value: o, label: o })),
-                                  ...((field.allow_other || field.type === 'select_with_other') ? [{ value: 'Otro (especifique)', label: 'Otro (especifique)' }] : [])
-                                ]}
-                              />
-                              {previewOtherValues[field.id] && (
+                              >
+                                {field.label} {field.required && <span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>*</span>}
+                              </Text>
+
+                              {field.type === 'select' || field.type === 'select_with_other' ? (
+                                <div>
+                                  <Select
+                                    placeholder={field.placeholder || `Seleccionar ${field.label.toLowerCase()}...`}
+                                    style={{ width: '100%' }}
+                                    onChange={(val) => {
+                                      setPreviewOtherValues({
+                                        ...previewOtherValues,
+                                        [field.id]: val === 'Otro (especifique)'
+                                      });
+                                    }}
+                                    options={[
+                                      ...(field.options || []).map(o => ({ value: o, label: o })),
+                                      ...((field.allow_other || field.type === 'select_with_other') ? [{ value: 'Otro (especifique)', label: 'Otro (especifique)' }] : [])
+                                    ]}
+                                  />
+                                  {previewOtherValues[field.id] && (
+                                    <Input
+                                      placeholder="Especifique otro..."
+                                      style={{ marginTop: '8px', borderRadius: '6px' }}
+                                    />
+                                  )}
+                                </div>
+                              ) : (
                                 <Input
-                                  placeholder="Especifique otro..."
-                                  style={{ marginTop: '8px', borderRadius: '6px' }}
+                                  placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
+                                  disabled
+                                  style={{ borderRadius: '6px' }}
                                 />
                               )}
                             </div>
-                          ) : (
-                            <Input
-                              placeholder={field.placeholder || `Ingrese ${field.label.toLowerCase()}`}
-                              disabled
-                              style={{ borderRadius: '6px' }}
-                            />
-                          )}
-                        </div>
-                      ))}
+                          ))}
 
-                      <Button
-                        type="primary"
-                        block
-                        style={{
-                          marginTop: '16px',
-                          height: '44px',
-                          fontWeight: '800',
-                          backgroundColor: formConfig.styling.primary_color || '#c3302d',
-                          borderColor: formConfig.styling.primary_color || '#c3302d',
-                          borderRadius: '8px'
-                        }}
-                      >
-                        Completar Preregistro
-                      </Button>
+                          <Button
+                            type="primary"
+                            block
+                            style={{
+                              marginTop: '16px',
+                              height: '44px',
+                              fontWeight: '800',
+                              backgroundColor: formConfig.styling.primary_color || '#c3302d',
+                              borderColor: formConfig.styling.primary_color || '#c3302d',
+                              borderRadius: '8px'
+                            }}
+                          >
+                            Completar Preregistro
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

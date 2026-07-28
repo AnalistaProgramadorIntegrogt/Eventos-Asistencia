@@ -79,7 +79,7 @@ export function requirePermission(permissionKey) {
       });
     }
 
-    const userHasPerm = req.user.permissions && req.user.permissions.includes(permissionKey);
+    const userHasPerm = (req.user.permissions && req.user.permissions.includes(permissionKey)) || hasPermission(req.user.role, permissionKey);
 
     // Súper Administrador siempre tiene acceso
     if (!userHasPerm && req.user.role !== 'super_admin') {

@@ -158,11 +158,15 @@ export const api = {
         const combinedMap = new Map();
 
         invitations.forEach(inv => {
+          const attendeeComp = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.company : (inv.attendees?.company || '');
+          const attendeeJob = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.job_title : (inv.attendees?.job_title || '');
           combinedMap.set(inv.id, {
             ...inv,
             full_name: inv.guest_name || inv.full_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim(),
             email: inv.guest_email || inv.email,
-            category_name: inv.category_name || 'VIP',
+            company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
+            job_title: inv.job_title || attendeeJob || '',
+            category_name: inv.category_name || (inv.event_categories ? inv.event_categories.name : 'VIP'),
             is_imported: true
           });
         });
@@ -171,7 +175,9 @@ export const api = {
           if (!combinedMap.has(sub.id)) {
             combinedMap.set(sub.id, {
               ...sub,
-              category_name: sub.category_name || 'General'
+              company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
+              job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
+              category_name: sub.category_name || (sub.event_categories ? sub.event_categories.name : 'General')
             });
           }
         });

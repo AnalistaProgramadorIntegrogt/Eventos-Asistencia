@@ -149,25 +149,36 @@ router.post('/events/:id/register', async (req, res) => {
       }
     }
 
-    // 3. Si el código de invitación es obligatorio o fue enviado, validarlo
+    // 3. Buscar invitación por código (si se envió) o por email en la tabla invitations
     let matchedInvitation = null;
-    if (event.invitation_code_required || invitation_code) {
-      if (!invitation_code) {
-        return res.status(400).json({ success: false, error: 'Este evento requiere un código de invitación obligatorio.' });
-      }
-
-      const { data: inv, error: invError } = await supabase
+    if (invitation_code) {
+      const { data: inv } = await supabase
         .from('invitations')
         .select('*')
         .eq('event_id', id)
         .eq('code', invitation_code)
         .is('deleted_at', null)
-        .single();
+        .maybeSingle();
 
-      if (invError || !inv || !inv.is_active) {
+      if (inv && inv.is_active) {
+        matchedInvitation = inv;
+      } else if (event.invitation_code_required) {
         return res.status(400).json({ success: false, error: 'El código de invitación no es válido o ha expirado.' });
       }
-      matchedInvitation = inv;
+    } else if (event.invitation_code_required) {
+      return res.status(400).json({ success: false, error: 'Este evento requiere un código de invitación obligatorio.' });
+    } else if (email) {
+      // Intentar vincular por email con una invitación precargada
+      const { data: invByEmail } = await supabase
+        .from('invitations')
+        .select('*')
+        .eq('event_id', id)
+        .ilike('guest_email', email.trim())
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (invByEmail) matchedInvitation = invByEmail;
     }
 
     // 4. Generar código aleatorio único de asistente y QR Data URL
@@ -187,11 +198,9 @@ router.post('/events/:id/register', async (req, res) => {
       if (genCat) finalCategoryId = genCat.id;
     }
 
-    // 5. Buscar si ya existe un registro precargado por Excel/CSV
-    //    Estrategia: primero por invitation_id (más preciso), luego por email (fallback)
+    // 5. Buscar si ya existe un registro de asistente guardado
     let existingAttendee = null;
 
-    // 5a. Si se usó un código de invitación, buscar el attendee vinculado a esa invitación
     if (matchedInvitation) {
       const { data: byInvitation } = await supabase
         .from('attendees')
@@ -202,13 +211,10 @@ router.post('/events/:id/register', async (req, res) => {
         .limit(1)
         .maybeSingle();
 
-      if (byInvitation) {
-        existingAttendee = byInvitation;
-      }
+      if (byInvitation) existingAttendee = byInvitation;
     }
 
-    // 5b. Si no se encontró por invitación, buscar por email (registros públicos o CSV sin código)
-    if (!existingAttendee) {
+    if (!existingAttendee && email) {
       const { data: byEmail } = await supabase
         .from('attendees')
         .select('*')
@@ -218,9 +224,7 @@ router.post('/events/:id/register', async (req, res) => {
         .limit(1)
         .maybeSingle();
 
-      if (byEmail) {
-        existingAttendee = byEmail;
-      }
+      if (byEmail) existingAttendee = byEmail;
     }
 
     let attendee = null;

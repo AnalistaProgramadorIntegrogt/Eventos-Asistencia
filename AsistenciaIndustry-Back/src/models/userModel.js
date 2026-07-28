@@ -1,5 +1,20 @@
 import { prisma } from '../config/prisma.js';
 import { supabase } from '../config/supabase.js';
+import { PERMISSIONS } from '../config/roles.js';
+
+export function resolveUserPermissions(roleName, rolePerms = [], userPerms = []) {
+  const configPerms = [];
+  if (roleName) {
+    for (const [permKey, allowedRoles] of Object.entries(PERMISSIONS)) {
+      if (Array.isArray(allowedRoles) && allowedRoles.includes(roleName)) {
+        configPerms.push(permKey);
+      }
+    }
+  }
+  const rPerms = Array.isArray(rolePerms) ? rolePerms : [];
+  const uPerms = Array.isArray(userPerms) ? userPerms : [];
+  return Array.from(new Set([...configPerms, ...rPerms, ...uPerms]));
+}
 
 /**
  * Modelo para la gestión de usuarios en la tabla `events.users` usando Prisma ORM (con fallback a Supabase REST).
@@ -19,14 +34,13 @@ export const UserModel = {
           include: { role: true }
         });
         if (user) {
-          const rolePerms = user.role?.permissions || [];
-          const userPerms = user.permissions || [];
+          const roleName = user.roleName || user.role?.name || 'operator';
           return {
             id: user.id,
             email: user.email,
             full_name: user.fullName,
-            role: user.roleName,
-            permissions: Array.from(new Set([...rolePerms, ...userPerms])),
+            role: roleName,
+            permissions: resolveUserPermissions(roleName, user.role?.permissions, user.permissions),
             is_active: user.isActive,
             created_at: user.createdAt,
             updated_at: user.updatedAt,
@@ -41,7 +55,28 @@ export const UserModel = {
     let query = supabase.from('users').select('*').eq('id', id);
     if (!includeDeleted) query = query.is('deleted_at', null);
     const { data } = await query.maybeSingle();
-    return data;
+    if (!data) return null;
+
+    const roleName = data.role || data.role_name || 'operator';
+    let rolePerms = [];
+    try {
+      const { data: roleData } = await supabase.from('roles').select('permissions').eq('name', roleName).maybeSingle();
+      if (roleData && Array.isArray(roleData.permissions)) {
+        rolePerms = roleData.permissions;
+      }
+    } catch (rErr) {}
+
+    return {
+      id: data.id,
+      email: data.email,
+      full_name: data.full_name || data.fullName,
+      role: roleName,
+      permissions: resolveUserPermissions(roleName, rolePerms, data.permissions),
+      is_active: data.is_active ?? data.isActive ?? true,
+      created_at: data.created_at || data.createdAt,
+      updated_at: data.updated_at || data.updatedAt,
+      deleted_at: data.deleted_at || data.deletedAt
+    };
   },
 
   /**
@@ -57,14 +92,13 @@ export const UserModel = {
           include: { role: true }
         });
         if (user) {
-          const rolePerms = user.role?.permissions || [];
-          const userPerms = user.permissions || [];
+          const roleName = user.roleName || user.role?.name || 'operator';
           return {
             id: user.id,
             email: user.email,
             full_name: user.fullName,
-            role: user.roleName,
-            permissions: Array.from(new Set([...rolePerms, ...userPerms])),
+            role: roleName,
+            permissions: resolveUserPermissions(roleName, user.role?.permissions, user.permissions),
             is_active: user.isActive,
             created_at: user.createdAt,
             updated_at: user.updatedAt,
@@ -79,7 +113,28 @@ export const UserModel = {
     let query = supabase.from('users').select('*').eq('email', email);
     if (!includeDeleted) query = query.is('deleted_at', null);
     const { data } = await query.maybeSingle();
-    return data;
+    if (!data) return null;
+
+    const roleName = data.role || data.role_name || 'operator';
+    let rolePerms = [];
+    try {
+      const { data: roleData } = await supabase.from('roles').select('permissions').eq('name', roleName).maybeSingle();
+      if (roleData && Array.isArray(roleData.permissions)) {
+        rolePerms = roleData.permissions;
+      }
+    } catch (rErr) {}
+
+    return {
+      id: data.id,
+      email: data.email,
+      full_name: data.full_name || data.fullName,
+      role: roleName,
+      permissions: resolveUserPermissions(roleName, rolePerms, data.permissions),
+      is_active: data.is_active ?? data.isActive ?? true,
+      created_at: data.created_at || data.createdAt,
+      updated_at: data.updated_at || data.updatedAt,
+      deleted_at: data.deleted_at || data.deletedAt
+    };
   },
 
   /**

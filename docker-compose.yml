@@ -11,7 +11,9 @@ services:
     env_file:
       - ./AsistenciaIndustry-Back/.env
     restart: unless-stopped
-    network_mode: host
+    networks:
+      - default
+      - app-network
     # Para desarrollo, a veces es útil mapear los volúmenes, pero aquí usamos el build estándar
     # volumes:
     #   - ./AsistenciaIndustry-Back:/app

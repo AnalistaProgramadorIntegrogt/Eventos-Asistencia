@@ -66,7 +66,7 @@ router.get('/invitations/:id', requirePermission('VIEW_GUESTS'), async (req, res
 router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { guest_name, guest_email, category_id, custom_code } = req.body;
+    const { guest_name, guest_email, category_id, custom_code, company, job_title } = req.body;
 
     const code = custom_code || generateUniqueInvitationCode('INV');
 
@@ -78,6 +78,29 @@ router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (
       code,
       is_active: true
     });
+
+    // Guardar registro en attendees para preservar la empresa y cargo
+    if (company || job_title) {
+      const rawName = guest_name || 'Invitado VIP';
+      const nameParts = rawName.trim().split(' ');
+      const firstName = nameParts[0] || 'Invitado';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await supabase.from('attendees').insert([{
+        event_id: eventId,
+        invitation_id: newInv.id,
+        category_id: category_id || null,
+        first_name: firstName,
+        last_name: lastName,
+        email: guest_email || '',
+        company: company || '',
+        job_title: job_title || '',
+        qr_code: generateUniqueAttendeeCode(),
+        status: 'pending',
+        is_public_registration: false,
+        additional_data: {}
+      }]);
+    }
 
     res.status(201).json({ success: true, data: formatInvitationResponse(newInv) });
   } catch (err) {
@@ -154,29 +177,40 @@ router.post('/:eventId/invitations/import', requirePermission('MANAGE_GUESTS'), 
       });
     }
 
-    // 1. Insertar todas las invitaciones y obtener sus IDs generados
-    const { data, error } = await supabase
-      .from('invitations')
-      .insert(guestDataList.map(g => g.invitation))
-      .select();
+    // 1. Insertar todas las invitaciones en bloques (chunks) para evitar límites de tamaño por consulta de PostgREST
+    const allInserted = [];
+    const chunkSize = 40;
+    const itemsToInsert = guestDataList.map(g => g.invitation);
 
-    if (error) throw error;
+    for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
+      const chunk = itemsToInsert.slice(i, i + chunkSize);
+      const { data: insertedChunk, error: chunkError } = await supabase
+        .from('invitations')
+        .insert(chunk)
+        .select();
 
-    // 2. Vincular cada attendee a su invitation_id correspondiente (por posición)
-    if (data && data.length > 0) {
-      const attendeesToInsert = data.map((inv, i) => ({
-        ...guestDataList[i].attendee,
-        invitation_id: inv.id  // ← Enlace clave para el match robusto en el formulario
-      }));
-
-      const { error: attError } = await supabase.from('attendees').insert(attendeesToInsert);
-      if (attError) {
-        console.error('Error insertando attendees precargados:', attError.message);
-        throw new Error(`Error al insertar los asistentes pre-cargados: ${attError.message}`);
+      if (chunkError) throw chunkError;
+      if (insertedChunk) {
+        allInserted.push(...insertedChunk);
       }
     }
 
-    const formattedData = (data || []).map(formatInvitationResponse);
+    // 2. Insertar los asistentes correspondientes para mantener vinculadas la empresa y el cargo
+    if (allInserted && allInserted.length > 0) {
+      const attendeesToInsert = allInserted.map((inv, idx) => ({
+        ...guestDataList[idx].attendee,
+        invitation_id: inv.id
+      }));
+
+      for (let i = 0; i < attendeesToInsert.length; i += chunkSize) {
+        const chunk = attendeesToInsert.slice(i, i + chunkSize);
+        await supabase
+          .from('attendees')
+          .insert(chunk);
+      }
+    }
+
+    const formattedData = (allInserted || []).map(formatInvitationResponse);
 
     res.json({
       success: true,
