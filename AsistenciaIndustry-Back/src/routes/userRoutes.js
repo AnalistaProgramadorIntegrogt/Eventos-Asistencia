@@ -2,11 +2,13 @@ import { Router } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase.js';
 import { UserModel } from '../models/userModel.js';
 import { prisma } from '../config/prisma.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
+import { AVAILABLE_PERMISSIONS } from '../config/roles.js';
 
 const router = Router();
 
 // GET /api/users - Listar todos los usuarios (admite búsqueda por query, filtro por rol y estado Soft Delete)
-router.get('/', async (req, res) => {
+router.get('/', requirePermission('VIEW_USERS'), async (req, res) => {
   try {
     const { search, role, includeDeleted, onlyDeleted } = req.query;
     const users = await UserModel.findAll({

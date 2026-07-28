@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Button, Modal, Form, Input, Select, Tag, Checkbox, Typography, Space, Popconfirm, message } from 'antd';
+import { Card, Table, Button, Modal, Form, Input, Select, Tag, Checkbox, Typography, Space, Popconfirm, Tabs, message } from 'antd';
 import { UserAddOutlined, SearchOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined, UserOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../services/apiService';
+import RoleManagement from './RoleManagement';
 
 const { Title, Text } = Typography;
 
@@ -12,6 +13,8 @@ export default function UserManagement({ currentUser }) {
   const [roleFilter, setRoleFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [permissionsCatalog, setPermissionsCatalog] = useState([]);
+  const [rolesList, setRolesList] = useState([]);
   const [form] = Form.useForm();
 
   const fetchUsers = async () => {
@@ -28,14 +31,28 @@ export default function UserManagement({ currentUser }) {
     }
   };
 
+  const fetchPermissionsAndRoles = async () => {
+    try {
+      const [permRes, rolesRes] = await Promise.all([
+        api.users.getPermissions(),
+        api.roles.list()
+      ]);
+      if (permRes.success) setPermissionsCatalog(permRes.data);
+      if (rolesRes.success) setRolesList(rolesRes.data);
+    } catch (err) {
+      console.error('Error fetching data', err);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchPermissionsAndRoles();
   }, [roleFilter]);
 
   const handleOpenCreate = () => {
     setEditingUser(null);
     form.resetFields();
-    form.setFieldsValue({ role: 'operator', is_active: true });
+    form.setFieldsValue({ role: 'operator', permissions: [], is_active: true });
     setShowModal(true);
   };
 
@@ -46,6 +63,7 @@ export default function UserManagement({ currentUser }) {
       email: user.email,
       full_name: user.full_name,
       role: user.role || 'operator',
+      permissions: user.permissions || [],
       is_active: user.is_active ?? true
     });
     setShowModal(true);
@@ -57,6 +75,7 @@ export default function UserManagement({ currentUser }) {
         const payload = {
           full_name: values.full_name,
           role: values.role,
+          permissions: values.permissions || [],
           is_active: values.is_active
         };
         if (values.password) payload.password = values.password;
@@ -119,8 +138,8 @@ export default function UserManagement({ currentUser }) {
       dataIndex: 'role',
       key: 'role',
       render: (role) => (
-        <Tag color={role === 'admin' ? 'red' : 'default'} icon={role === 'admin' ? <SafetyCertificateOutlined /> : <UserOutlined />}>
-          {role === 'admin' ? 'Administrador' : 'Operador'}
+        <Tag color={role === 'super_admin' ? 'red' : role === 'admin' ? 'volcano' : 'blue'} icon={<SafetyCertificateOutlined />}>
+          {role}
         </Tag>
       )
     },
@@ -158,28 +177,8 @@ export default function UserManagement({ currentUser }) {
     }
   ];
 
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
-        <div>
-          <Title level={2} style={{ margin: 0, fontWeight: '700', letterSpacing: '-0.04em' }}>
-            Gestión de Usuarios y Roles<span style={{ color: '#c3302d' }}>.</span>
-          </Title>
-          <Text type="secondary" style={{ fontSize: '0.9rem' }}>
-            Administración de accesos corporativos y credenciales de personal
-          </Text>
-        </div>
-        <Button
-          type="primary"
-          icon={<UserAddOutlined />}
-          size="large"
-          onClick={handleOpenCreate}
-          style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
-        >
-          Crear Usuario
-        </Button>
-      </div>
-
+  const userTabContent = (
+    <>
       <Card bordered={false} style={{ marginBottom: '24px', boxShadow: '0 4px 14px rgba(0,0,0,0.05)' }}>
         <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
           <Space>
@@ -198,8 +197,7 @@ export default function UserManagement({ currentUser }) {
               style={{ width: '180px' }}
               options={[
                 { value: '', label: 'Todos los Roles' },
-                { value: 'admin', label: 'Administradores' },
-                { value: 'operator', label: 'Operadores' }
+                ...rolesList.map(r => ({ value: r.name, label: r.name }))
               ]}
             />
 
@@ -219,7 +217,6 @@ export default function UserManagement({ currentUser }) {
         />
       </Card>
 
-      {/* Modal User Form */}
       <Modal
         title={<Title level={4} style={{ margin: 0 }}>{editingUser ? 'Editar Usuario' : 'Crear Usuario'}</Title>}
         open={showModal}
@@ -257,15 +254,33 @@ export default function UserManagement({ currentUser }) {
 
           <Form.Item
             name="role"
-            label={<Text strong>Rol de Acceso</Text>}
+            label={<Text strong>Rol de Acceso Base</Text>}
             rules={[{ required: true }]}
           >
             <Select
-              options={[
-                { value: 'operator', label: 'Operador (Lectura y Escaneo QR)' },
-                { value: 'admin', label: 'Administrador (Control total)' }
-              ]}
+              options={rolesList.map(r => ({ value: r.name, label: r.name }))}
             />
+          </Form.Item>
+
+          <Form.Item
+            name="permissions"
+            label={<Text strong>Permisos Adicionales (Opcional)</Text>}
+            tooltip="Asigne permisos específicos a este usuario independientemente de su rol base."
+          >
+            <Checkbox.Group style={{ width: '100%' }}>
+              {Array.from(new Set(permissionsCatalog.map(p => p.category))).map(category => (
+                <div key={category} style={{ marginBottom: '12px' }}>
+                  <Text strong type="secondary" style={{ display: 'block', marginBottom: '8px' }}>{category}</Text>
+                  <Space direction="vertical">
+                    {permissionsCatalog.filter(p => p.category === category).map(perm => (
+                      <Checkbox key={perm.id} value={perm.id}>
+                        {perm.name} <Text type="secondary" style={{ fontSize: '0.75rem' }}>({perm.id})</Text>
+                      </Checkbox>
+                    ))}
+                  </Space>
+                </div>
+              ))}
+            </Checkbox.Group>
           </Form.Item>
 
           <Form.Item name="is_active" valuePropName="checked">
@@ -282,6 +297,46 @@ export default function UserManagement({ currentUser }) {
           </Form.Item>
         </Form>
       </Modal>
+    </>
+  );
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px' }}>
+        <div>
+          <Title level={2} style={{ margin: 0, fontWeight: '700', letterSpacing: '-0.04em' }}>
+            Gestión de Usuarios y Roles<span style={{ color: '#c3302d' }}>.</span>
+          </Title>
+          <Text type="secondary" style={{ fontSize: '0.9rem' }}>
+            Administración de accesos corporativos y credenciales de personal
+          </Text>
+        </div>
+        <Button
+          type="primary"
+          icon={<UserAddOutlined />}
+          size="large"
+          onClick={handleOpenCreate}
+          style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
+        >
+          Crear Usuario
+        </Button>
+      </div>
+
+      <Tabs 
+        defaultActiveKey="1" 
+        items={[
+          {
+            key: '1',
+            label: 'Directorio de Usuarios',
+            children: userTabContent,
+          },
+          {
+            key: '2',
+            label: 'Roles y Permisos',
+            children: <RoleManagement permissionsCatalog={permissionsCatalog} />,
+          },
+        ]}
+      />
     </div>
   );
 }

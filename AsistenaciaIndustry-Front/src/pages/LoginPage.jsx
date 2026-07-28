@@ -154,6 +154,37 @@ export default function LoginPage({ onLoginSuccess }) {
                   {loading ? 'Autenticando...' : 'Acceder al Sistema'}
                 </Button>
               </Form.Item>
+
+              <div style={{ textAlign: 'center', margin: '16px 0' }}>
+                <Text type="secondary" style={{ fontSize: '0.85rem' }}>o continuar con</Text>
+              </div>
+
+              <Button
+                block
+                style={{
+                  height: '48px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+                onClick={async () => {
+                  try {
+                    const res = await api.auth.microsoft(window.location.origin + '/auth/callback');
+                    if (res.success && res.url) {
+                      window.location.href = res.url;
+                    } else {
+                      setErrorMsg('Error al iniciar sesión con Microsoft');
+                    }
+                  } catch (err) {
+                    setErrorMsg('Error de red al conectar con Microsoft');
+                  }
+                }}
+              >
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="Microsoft" style={{ width: '18px' }} />
+                Iniciar sesión con Microsoft
+              </Button>
             </Form>
           </Card>
 

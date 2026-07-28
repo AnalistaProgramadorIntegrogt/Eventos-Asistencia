@@ -11,6 +11,7 @@ services:
     env_file:
       - ./AsistenciaIndustry-Back/.env
     restart: unless-stopped
+    network_mode: host
     # Para desarrollo, a veces es útil mapear los volúmenes, pero aquí usamos el build estándar
     # volumes:
     #   - ./AsistenciaIndustry-Back:/app
@@ -22,9 +23,17 @@ services:
       dockerfile: Dockerfile
     container_name: eventos_frontend
     ports:
-      - "80:80"
+      - "8081:80"
     env_file:
       - ./AsistenaciaIndustry-Front/.env
     restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400

@@ -14,13 +14,19 @@ export const UserModel = {
       if (prisma && prisma.user) {
         const whereClause = { id };
         if (!includeDeleted) whereClause.deletedAt = null;
-        const user = await prisma.user.findFirst({ where: whereClause });
+        const user = await prisma.user.findFirst({ 
+          where: whereClause,
+          include: { role: true }
+        });
         if (user) {
+          const rolePerms = user.role?.permissions || [];
+          const userPerms = user.permissions || [];
           return {
             id: user.id,
             email: user.email,
             full_name: user.fullName,
-            role: user.role,
+            role: user.roleName,
+            permissions: Array.from(new Set([...rolePerms, ...userPerms])),
             is_active: user.isActive,
             created_at: user.createdAt,
             updated_at: user.updatedAt,
@@ -46,13 +52,19 @@ export const UserModel = {
       if (prisma && prisma.user) {
         const whereClause = { email };
         if (!includeDeleted) whereClause.deletedAt = null;
-        const user = await prisma.user.findFirst({ where: whereClause });
+        const user = await prisma.user.findFirst({ 
+          where: whereClause,
+          include: { role: true }
+        });
         if (user) {
+          const rolePerms = user.role?.permissions || [];
+          const userPerms = user.permissions || [];
           return {
             id: user.id,
             email: user.email,
             full_name: user.fullName,
-            role: user.role,
+            role: user.roleName,
+            permissions: Array.from(new Set([...rolePerms, ...userPerms])),
             is_active: user.isActive,
             created_at: user.createdAt,
             updated_at: user.updatedAt,
@@ -73,7 +85,7 @@ export const UserModel = {
   /**
    * Crear un nuevo usuario en la base de datos
    */
-  async create({ id, email, full_name, role = 'operator', is_active = true }) {
+  async create({ id, email, full_name, role = 'operator', permissions = [], is_active = true }) {
     try {
       if (prisma && prisma.user) {
         const user = await prisma.user.create({
@@ -81,15 +93,20 @@ export const UserModel = {
             id: id || undefined,
             email,
             fullName: full_name,
-            role,
+            roleName: role,
+            permissions,
             isActive: is_active
-          }
+          },
+          include: { role: true }
         });
+        const rolePerms = user.role?.permissions || [];
+        const userPerms = user.permissions || [];
         return {
           id: user.id,
           email: user.email,
           full_name: user.fullName,
-          role: user.role,
+          role: user.roleName,
+          permissions: Array.from(new Set([...rolePerms, ...userPerms])),
           is_active: user.isActive,
           created_at: user.createdAt
         };
@@ -110,27 +127,32 @@ export const UserModel = {
    * Actualizar usuario por ID
    */
   async updateUser(id, updateData) {
-    const { full_name, role, is_active, email } = updateData;
+    const { full_name, role, permissions, is_active, email } = updateData;
 
     try {
       if (prisma && prisma.user) {
         const dataToUpdate = {};
         if (full_name !== undefined) dataToUpdate.fullName = full_name;
-        if (role !== undefined) dataToUpdate.role = role;
+        if (role !== undefined) dataToUpdate.roleName = role;
+        if (permissions !== undefined) dataToUpdate.permissions = permissions;
         if (is_active !== undefined) dataToUpdate.isActive = is_active;
         if (email !== undefined) dataToUpdate.email = email;
         dataToUpdate.updatedAt = new Date();
 
         const user = await prisma.user.update({
           where: { id },
-          data: dataToUpdate
+          data: dataToUpdate,
+          include: { role: true }
         });
 
+        const rolePerms = user.role?.permissions || [];
+        const userPerms = user.permissions || [];
         return {
           id: user.id,
           email: user.email,
           full_name: user.fullName,
-          role: user.role,
+          role: user.roleName,
+          permissions: Array.from(new Set([...rolePerms, ...userPerms])),
           is_active: user.isActive,
           updated_at: user.updatedAt,
           deleted_at: user.deletedAt
@@ -143,6 +165,7 @@ export const UserModel = {
     const updates = {};
     if (full_name !== undefined) updates.full_name = full_name;
     if (role !== undefined) updates.role = role;
+    if (permissions !== undefined) updates.permissions = permissions;
     if (is_active !== undefined) updates.is_active = is_active;
     if (email !== undefined) updates.email = email;
     updates.updated_at = new Date().toISOString();
@@ -271,19 +294,25 @@ export const UserModel = {
 
         const users = await prisma.user.findMany({
           where: whereClause,
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          include: { role: true }
         });
 
-        return users.map(user => ({
-          id: user.id,
-          email: user.email,
-          full_name: user.fullName,
-          role: user.role,
-          is_active: user.isActive,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-          deleted_at: user.deletedAt
-        }));
+        return users.map(user => {
+          const rolePerms = user.role?.permissions || [];
+          const userPerms = user.permissions || [];
+          return {
+            id: user.id,
+            email: user.email,
+            full_name: user.fullName,
+            role: user.roleName,
+            permissions: Array.from(new Set([...rolePerms, ...userPerms])),
+            is_active: user.isActive,
+            created_at: user.createdAt,
+            updated_at: user.updatedAt,
+            deleted_at: user.deletedAt
+          };
+        });
       }
     } catch (err) {
       // Fallback

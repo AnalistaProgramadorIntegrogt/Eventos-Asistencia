@@ -11,7 +11,8 @@ import checkinRoutes from './routes/checkinRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
-import { authenticateToken, requireRole } from './middleware/authMiddleware.js';
+import roleRoutes from './routes/roleRoutes.js';
+import { authenticateToken, requirePermission } from './middleware/authMiddleware.js';
 import { initAdminUser } from './services/authSeedService.js';
 
 dotenv.config();
@@ -44,10 +45,11 @@ app.use('/api/events', authenticateToken, attendeeRoutes);
 app.use('/api', authenticateToken, attendeeRoutes);
 app.use('/api/checkin', authenticateToken, checkinRoutes);
 app.use('/api/dashboard', authenticateToken, dashboardRoutes);
-app.use('/api/trash', authenticateToken, requireRole('admin'), trashRoutes);
+app.use('/api/trash', authenticateToken, requirePermission('DELETE_EVENTS'), trashRoutes);
 
 // Gestión de Usuarios (requiere autenticación y rol de Admin)
-app.use('/api/users', authenticateToken, requireRole('admin'), userRoutes);
+app.use('/api/users', authenticateToken, requirePermission('MANAGE_USERS'), userRoutes);
+app.use('/api/roles', authenticateToken, requirePermission('MANAGE_USERS'), roleRoutes);
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {

@@ -4,12 +4,12 @@ import { CategoryModel } from '../models/categoryModel.js';
 import { InvitationModel } from '../models/invitationModel.js';
 import { AttendeeModel } from '../models/attendeeModel.js';
 import { UserModel } from '../models/userModel.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
 // GET /api/trash - Consultar todos los elementos eliminados lógicamente (Solo Admin)
-router.get('/', requireRole('admin'), async (req, res) => {
+router.get('/', requirePermission('DELETE_EVENTS'), async (req, res) => {
   try {
     const { type } = req.query;
 
@@ -57,7 +57,7 @@ router.get('/', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/trash/restore - Restaurar un elemento desde la papelera por su tipo e ID (Solo Admin)
-router.post('/restore', requireRole('admin'), async (req, res) => {
+router.post('/restore', requirePermission('DELETE_EVENTS'), async (req, res) => {
   try {
     const { type, id } = req.body;
 
@@ -101,7 +101,7 @@ router.post('/restore', requireRole('admin'), async (req, res) => {
 });
 
 // DELETE /api/trash/empty - Vaciar la papelera (Eliminación permanente de todos los ítems borrados lógicamente) (Solo Admin)
-router.delete('/empty', requireRole('admin'), async (req, res) => {
+router.delete('/empty', requirePermission('DELETE_EVENTS'), async (req, res) => {
   try {
     const events = await EventModel.findAll({ onlyDeleted: true });
     for (const ev of events) {

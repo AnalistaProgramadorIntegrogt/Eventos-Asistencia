@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { EventModel } from '../models/eventModel.js';
 import { CategoryModel } from '../models/categoryModel.js';
 import { AttendeeModel } from '../models/attendeeModel.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
@@ -11,7 +11,7 @@ const router = Router();
 // ==========================================
 
 // GET /api/events/:eventId/form-submissions - Listar respuestas del formulario de un evento
-router.get('/:eventId/form-submissions', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:eventId/form-submissions', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { search, category_id, status } = req.query;
@@ -59,7 +59,7 @@ router.get('/:eventId/form-submissions', requireRole('admin', 'operator'), async
 });
 
 // GET /api/events/:id/email-config - Obtener plantilla de correo configurable del evento
-router.get('/:id/email-config', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:id/email-config', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const event = await EventModel.findById(id);
@@ -101,7 +101,7 @@ router.get('/:id/email-config', requireRole('admin', 'operator'), async (req, re
 });
 
 // PUT /api/events/:id/email-config - Crear / Editar plantilla de correo de un evento (Solo Admin)
-router.put('/:id/email-config', requireRole('admin'), async (req, res) => {
+router.put('/:id/email-config', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body || {};
@@ -136,7 +136,7 @@ router.put('/:id/email-config', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/events/:id/email-config/reset - Resetear plantilla de correo a valores por defecto (Solo Admin)
-router.post('/:id/email-config/reset', requireRole('admin'), async (req, res) => {
+router.post('/:id/email-config/reset', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const defaultConfig = {
@@ -158,7 +158,7 @@ router.post('/:id/email-config/reset', requireRole('admin'), async (req, res) =>
 });
 
 // GET /api/events/:id/form-config - Obtener la configuración del formulario dinámico de un evento
-router.get('/:id/form-config', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:id/form-config', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const event = await EventModel.findById(id);
@@ -179,7 +179,7 @@ router.get('/:id/form-config', requireRole('admin', 'operator'), async (req, res
 });
 
 // PUT /api/events/:id/form-config - Crear / Editar la configuración del formulario dinámico (Solo Admin)
-router.put('/:id/form-config', requireRole('admin'), async (req, res) => {
+router.put('/:id/form-config', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { form_config, confirmation_message } = req.body;
@@ -200,7 +200,7 @@ router.put('/:id/form-config', requireRole('admin'), async (req, res) => {
 });
 
 // DELETE /api/events/:id/form-config - Resetear/Eliminar configuración del formulario a default (Solo Admin)
-router.delete('/:id/form-config', requireRole('admin'), async (req, res) => {
+router.delete('/:id/form-config', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const defaultConfig = {
@@ -237,7 +237,7 @@ router.delete('/:id/form-config', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/events/:id/form-config/restore - Restaurar configuración de formulario por defecto (Solo Admin)
-router.post('/:id/form-config/restore', requireRole('admin'), async (req, res) => {
+router.post('/:id/form-config/restore', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const defaultConfig = {
@@ -274,7 +274,7 @@ router.post('/:id/form-config/restore', requireRole('admin'), async (req, res) =
 });
 
 // GET /api/events/:id/categories - Listar categorías de un evento (Admin y Operador)
-router.get('/:id/categories', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:id/categories', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { includeDeleted, onlyDeleted } = req.query;
@@ -290,7 +290,7 @@ router.get('/:id/categories', requireRole('admin', 'operator'), async (req, res)
 });
 
 // POST /api/events/:id/categories - Crear categoría de un evento (Solo Admin)
-router.post('/:id/categories', requireRole('admin'), async (req, res) => {
+router.post('/:id/categories', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
@@ -307,7 +307,7 @@ router.post('/:id/categories', requireRole('admin'), async (req, res) => {
 });
 
 // PUT /api/events/categories/:categoryId - Editar categoría (Solo Admin)
-router.put('/categories/:categoryId', requireRole('admin'), async (req, res) => {
+router.put('/categories/:categoryId', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { categoryId } = req.params;
     const { name } = req.body;
@@ -324,7 +324,7 @@ router.put('/categories/:categoryId', requireRole('admin'), async (req, res) => 
 });
 
 // DELETE /api/events/categories/:categoryId - Soft Delete de categoría (Solo Admin)
-router.delete('/categories/:categoryId', requireRole('admin'), async (req, res) => {
+router.delete('/categories/:categoryId', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { categoryId } = req.params;
     const deleted = await CategoryModel.softDelete(categoryId);
@@ -335,7 +335,7 @@ router.delete('/categories/:categoryId', requireRole('admin'), async (req, res) 
 });
 
 // POST /api/events/categories/:categoryId/restore - Restaurar categoría (Solo Admin)
-router.post('/categories/:categoryId/restore', requireRole('admin'), async (req, res) => {
+router.post('/categories/:categoryId/restore', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { categoryId } = req.params;
     const restored = await CategoryModel.restore(categoryId);
@@ -346,7 +346,7 @@ router.post('/categories/:categoryId/restore', requireRole('admin'), async (req,
 });
 
 // DELETE /api/events/categories/:categoryId/permanent - Borrado definitivo de categoría (Solo Admin)
-router.delete('/categories/:categoryId/permanent', requireRole('admin'), async (req, res) => {
+router.delete('/categories/:categoryId/permanent', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { categoryId } = req.params;
     await CategoryModel.permanentDelete(categoryId);
@@ -361,7 +361,7 @@ router.delete('/categories/:categoryId/permanent', requireRole('admin'), async (
 // ==========================================
 
 // GET /api/events - Listar eventos (Admin y Operador)
-router.get('/', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { search, status, includeDeleted, onlyDeleted } = req.query;
     const events = await EventModel.findAll({
@@ -379,7 +379,7 @@ router.get('/', requireRole('admin', 'operator'), async (req, res) => {
 });
 
 // POST /api/events - Crear nuevo evento (Solo Admin)
-router.post('/', requireRole('admin'), async (req, res) => {
+router.post('/', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const newEvent = await EventModel.create(req.body);
     res.status(201).json({ success: true, data: newEvent });
@@ -389,7 +389,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/events/:id/restore - Restaurar evento de la papelera (Solo Admin)
-router.post('/:id/restore', requireRole('admin'), async (req, res) => {
+router.post('/:id/restore', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const restored = await EventModel.restore(id);
@@ -404,7 +404,7 @@ router.post('/:id/restore', requireRole('admin'), async (req, res) => {
 });
 
 // DELETE /api/events/:id/permanent - Borrado definitivo de evento (Solo Admin)
-router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
+router.delete('/:id/permanent', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     await EventModel.permanentDelete(id);
@@ -418,7 +418,7 @@ router.delete('/:id/permanent', requireRole('admin'), async (req, res) => {
 });
 
 // GET /api/events/:id - Obtener evento por ID (Admin y Operador)
-router.get('/:id', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:id', requirePermission('VIEW_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { includeDeleted } = req.query;
@@ -437,7 +437,7 @@ router.get('/:id', requireRole('admin', 'operator'), async (req, res) => {
 });
 
 // PUT /api/events/:id - Actualizar evento general (Solo Admin)
-router.put('/:id', requireRole('admin'), async (req, res) => {
+router.put('/:id', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await EventModel.update(id, req.body);
@@ -448,7 +448,7 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
 });
 
 // DELETE /api/events/:id - Soft Delete de evento (Solo Admin)
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requirePermission('EDIT_EVENTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await EventModel.softDelete(id);

@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
 // POST /api/checkin/scan - Escaneo rápido con Lector QR de teclado (Admin y Operador)
-router.post('/scan', requireRole('admin', 'operator'), async (req, res) => {
+router.post('/scan', requirePermission('SCAN_QR'), async (req, res) => {
   try {
     const { event_id, qr_code, operator_id, operator_name } = req.body;
 
@@ -143,7 +143,7 @@ router.post('/scan', requireRole('admin', 'operator'), async (req, res) => {
 });
 
 // GET /api/checkin/events/:eventId/search - Búsqueda manual de preregistrados (Admin y Operador)
-router.get('/events/:eventId/search', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/events/:eventId/search', requirePermission('SCAN_QR'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { query } = req.query;
@@ -168,7 +168,7 @@ router.get('/events/:eventId/search', requireRole('admin', 'operator'), async (r
 });
 
 // POST /api/checkin/manual - Marcar asistencia manualmente (Admin y Operador)
-router.post('/manual', requireRole('admin', 'operator'), async (req, res) => {
+router.post('/manual', requirePermission('SCAN_QR'), async (req, res) => {
   try {
     const { event_id, attendee_id, operator_id, operator_name } = req.body;
 
@@ -277,7 +277,7 @@ router.post('/manual', requireRole('admin', 'operator'), async (req, res) => {
 });
 
 // POST /api/checkin/manual/uncheck - Desmarcar asistencia manualmente (Solo Admin - PRD 5.1)
-router.post('/manual/uncheck', requireRole('admin'), async (req, res) => {
+router.post('/manual/uncheck', requirePermission('MANUAL_CHECKIN'), async (req, res) => {
   try {
     const { event_id, attendee_id, operator_id, operator_name, reason } = req.body;
 

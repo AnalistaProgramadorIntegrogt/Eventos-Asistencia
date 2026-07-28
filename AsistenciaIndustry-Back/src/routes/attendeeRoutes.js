@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { AttendeeModel } from '../models/attendeeModel.js';
 import { generateUniqueAttendeeCode, generateQRDataURL } from '../services/qrService.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
 // =========================================================================
 // GET /api/events/:eventId/form-submissions - Listar respuestas del formulario de un evento
 // =========================================================================
-router.get('/:eventId/form-submissions', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:eventId/form-submissions', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { search, category_id, status } = req.query;
@@ -56,7 +56,7 @@ router.get('/:eventId/form-submissions', requireRole('admin', 'operator'), async
 });
 
 // GET /api/events/:eventId/attendees - Listar asistentes de un evento (Admin y Operador)
-router.get('/:eventId/attendees', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:eventId/attendees', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { search, category_id, status, includeDeleted, onlyDeleted } = req.query;
@@ -76,7 +76,7 @@ router.get('/:eventId/attendees', requireRole('admin', 'operator'), async (req, 
 });
 
 // GET /api/attendees/:id - Obtener detalle de asistente por ID (Admin y Operador)
-router.get(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin', 'operator'), async (req, res) => {
+router.get(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { includeDeleted } = req.query;
@@ -96,7 +96,7 @@ router.get(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin', '
 });
 
 // POST /api/events/:eventId/attendees - Crear asistente manualmente (Admin y Operador)
-router.post('/:eventId/attendees', requireRole('admin', 'operator'), async (req, res) => {
+router.post('/:eventId/attendees', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { first_name, last_name, email, company, job_title, category_id, invitation_id, additional_data, status } = req.body;
@@ -137,7 +137,7 @@ router.post('/:eventId/attendees', requireRole('admin', 'operator'), async (req,
 });
 
 // PUT /api/attendees/:id & /api/events/:eventId/attendees/:id - Actualizar / Editar datos del asistente
-router.put(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin', 'operator'), async (req, res) => {
+router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { first_name, last_name, email, company, job_title, category_id, status, additional_data } = req.body;
@@ -192,7 +192,7 @@ router.put(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin', '
 });
 
 // DELETE /api/attendees/:id & /api/events/:eventId/attendees/:id - Eliminar asistente
-router.delete(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin', 'operator'), async (req, res) => {
+router.delete(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { permanent } = req.query;
@@ -217,7 +217,7 @@ router.delete(['/attendees/:id', '/:eventId/attendees/:id'], requireRole('admin'
 });
 
 // POST /api/attendees/:id/restore - Restaurar asistente
-router.post('/attendees/:id/restore', requireRole('admin'), async (req, res) => {
+router.post('/attendees/:id/restore', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const restored = await AttendeeModel.restore(id);
@@ -232,7 +232,7 @@ router.post('/attendees/:id/restore', requireRole('admin'), async (req, res) => 
 });
 
 // DELETE /api/attendees/:id/permanent - Borrado definitivo del asistente (Admin)
-router.delete('/attendees/:id/permanent', requireRole('admin'), async (req, res) => {
+router.delete('/attendees/:id/permanent', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     await AttendeeModel.permanentDelete(id);

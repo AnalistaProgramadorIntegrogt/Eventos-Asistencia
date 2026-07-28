@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { supabase } from '../config/supabase.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
 // GET /api/dashboard/events/:eventId - Indicadores y gráficos del evento (Admin y Operador)
-router.get('/events/:eventId', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, res) => {
   try {
     const { eventId } = req.params;
 

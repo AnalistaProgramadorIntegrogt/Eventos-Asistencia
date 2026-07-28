@@ -78,6 +78,7 @@ export const api = {
   // 1. Auth Endpoints
   auth: {
     login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    microsoft: (redirectTo) => request(`/auth/microsoft?redirectTo=${encodeURIComponent(redirectTo)}`),
     me: () => request('/auth/me'),
   },
 
@@ -89,10 +90,19 @@ export const api = {
       if (role) params.append('role', role);
       return request(`/users?${params.toString()}`);
     },
+    getPermissions: () => request('/roles/permissions'),
     getById: (id) => request(`/users/${id}`),
     create: (userData) => request('/users', { method: 'POST', body: JSON.stringify(userData) }),
     update: (id, userData) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(userData) }),
     delete: (id) => request(`/users/${id}`, { method: 'DELETE' })
+  },
+
+  // Roles CRUD Endpoints
+  roles: {
+    list: () => request('/roles'),
+    create: (roleData) => request('/roles', { method: 'POST', body: JSON.stringify(roleData) }),
+    update: (name, roleData) => request(`/roles/${name}`, { method: 'PUT', body: JSON.stringify(roleData) }),
+    delete: (name) => request(`/roles/${name}`, { method: 'DELETE' })
   },
 
   // 3. Events Endpoints

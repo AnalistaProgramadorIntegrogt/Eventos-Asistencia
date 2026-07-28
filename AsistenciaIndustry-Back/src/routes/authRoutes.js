@@ -57,6 +57,29 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// GET /api/auth/microsoft - Obtener URL de autenticación de Microsoft
+router.get('/microsoft', async (req, res) => {
+  try {
+    const redirectTo = req.query.redirectTo || req.headers.origin || 'http://localhost:80';
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        scopes: 'email profile',
+        redirectTo: redirectTo
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+
+    res.json({ success: true, url: data.url });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // GET /api/auth/me - Obtener perfil del usuario actualmente autenticado
 router.get('/me', authenticateToken, (req, res) => {
   res.json({

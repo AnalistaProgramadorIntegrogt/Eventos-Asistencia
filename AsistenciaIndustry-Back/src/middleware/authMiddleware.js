@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { UserModel } from '../models/userModel.js';
+import { hasPermission } from '../config/roles.js';
 
 /**
  * Middleware para validar el token de autenticación (JWT) de Supabase en las peticiones.
@@ -27,14 +28,29 @@ export async function authenticateToken(req, res, next) {
     }
 
     // Obtener detalles del usuario desde events.users
-    const userRecord = await UserModel.findById(user.id);
+    let userRecord = await UserModel.findById(user.id);
+
+    // Si el usuario no existe en la base de datos interna (ej: primer login con Microsoft), lo creamos
+    if (!userRecord) {
+      const defaultRole = 'operator'; // Rol por defecto para nuevos usuarios de Microsoft
+      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email;
+      
+      userRecord = await UserModel.create({
+        id: user.id,
+        email: user.email,
+        full_name: fullName,
+        role: defaultRole,
+        is_active: true
+      });
+    }
 
     req.user = {
       id: user.id,
       email: user.email,
-      role: userRecord?.role || user.user_metadata?.role || 'operator',
-      full_name: userRecord?.full_name || user.user_metadata?.full_name || user.email,
-      is_active: userRecord?.is_active ?? true
+      role: userRecord.role,
+      permissions: userRecord.permissions || [],
+      full_name: userRecord.full_name,
+      is_active: userRecord.is_active
     };
 
     next();
@@ -47,9 +63,10 @@ export async function authenticateToken(req, res, next) {
 }
 
 /**
- * Middleware para restringir el acceso a ciertos roles (ej: 'admin', 'operator')
+ * Middleware para restringir el acceso basado en permisos escalables.
+ * @param {string} permissionKey - El permiso requerido (ej: 'CREATE_EVENTS')
  */
-export function requireRole(...allowedRoles) {
+export function requirePermission(permissionKey) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
@@ -58,10 +75,13 @@ export function requireRole(...allowedRoles) {
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: `Acceso restringido. Se requiere rol de: ${allowedRoles.join(' o ')}.`
+    const userHasPerm = req.user.permissions && req.user.permissions.includes(permissionKey);
+
+    // Súper Administrador siempre tiene acceso
+    if (!userHasPerm && req.user.role !== 'super_admin') {
+      return res.status(403).json({ 
+        success: false, 
+        error: `Acceso restringido. No tiene permisos para realizar esta acción (${permissionKey}).` 
       });
     }
 

@@ -27,6 +27,7 @@ import OperatorCheckIn from './pages/OperatorCheckIn';
 import ManualCheckIn from './pages/ManualCheckIn';
 import PublicPreRegistration from './pages/PublicPreRegistration';
 import PublicQRScanner from './pages/PublicQRScanner';
+import AuthCallback from './pages/AuthCallback';
 
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -40,6 +41,7 @@ export default function App() {
   const pathname = window.location.pathname;
   const isPublicRegister = pathname.startsWith('/register/') || pathname.startsWith('/public/events/');
   const isPublicScan = pathname.startsWith('/scan/') || pathname.startsWith('/checkin/');
+  const isAuthCallback = pathname.startsWith('/auth/callback');
 
   const fetchEvents = () => {
     api.events.list()
@@ -66,6 +68,10 @@ export default function App() {
     window.location.href = '/events/auth/login';
   };
 
+  if (isAuthCallback) {
+    return <AuthCallback />;
+  }
+
   // Routes públicos directos
   if (isPublicRegister) {
     return <PublicPreRegistration />;
@@ -89,8 +95,10 @@ export default function App() {
 
   const selectedEvent = eventsList.find(e => e.id === selectedEventId);
 
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
   const menuItems = [
-    {
+    ...(isAdmin ? [{
       key: 'grp-admin',
       label: 'ADMINISTRACIÓN',
       type: 'group',
@@ -99,12 +107,13 @@ export default function App() {
         { key: 'events', icon: <CalendarOutlined />, label: 'Catálogo de Eventos' },
         { key: 'users', icon: <SafetyCertificateOutlined />, label: 'Directorio de Usuarios' }
       ]
-    },
+    }] : []),
     {
       key: 'grp-checkin',
       label: 'CONTROL DE INGRESO',
       type: 'group',
       children: [
+        { key: 'scanner', icon: <QrcodeOutlined />, label: 'Escanear QR' },
         { key: 'manual-checkin', icon: <SearchOutlined />, label: 'Búsqueda y Asistencia' },
         { key: 'public-preview', icon: <ExportOutlined />, label: 'Vista Previa Pública' }
       ]

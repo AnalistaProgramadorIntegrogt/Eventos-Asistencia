@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase.js';
 import { InvitationModel } from '../models/invitationModel.js';
 import { generateUniqueInvitationCode, generateUniqueAttendeeCode } from '../services/qrService.js';
 import { parseGuestsFromExcelBuffer } from '../services/excelService.js';
-import { requireRole } from '../middleware/authMiddleware.js';
+import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -24,7 +24,7 @@ const formatInvitationResponse = (invitation) => {
 };
 
 // GET /api/events/:eventId/invitations - Listar invitaciones de un evento (Admin y Operador)
-router.get('/:eventId/invitations', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/:eventId/invitations', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { search, includeDeleted, onlyDeleted } = req.query;
@@ -43,7 +43,7 @@ router.get('/:eventId/invitations', requireRole('admin', 'operator'), async (req
 });
 
 // GET /api/invitations/:id - Obtener invitación por ID (Admin y Operador)
-router.get('/invitations/:id', requireRole('admin', 'operator'), async (req, res) => {
+router.get('/invitations/:id', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { includeDeleted } = req.query;
@@ -63,7 +63,7 @@ router.get('/invitations/:id', requireRole('admin', 'operator'), async (req, res
 });
 
 // POST /api/events/:eventId/invitations - Crear invitación manual (Solo Admin)
-router.post('/:eventId/invitations', requireRole('admin'), async (req, res) => {
+router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { guest_name, guest_email, category_id, custom_code } = req.body;
@@ -86,7 +86,7 @@ router.post('/:eventId/invitations', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/events/:eventId/invitations/import - Importar masivo desde Excel / CSV (Solo Admin)
-router.post('/:eventId/invitations/import', requireRole('admin'), upload.single('file'), async (req, res) => {
+router.post('/:eventId/invitations/import', requirePermission('MANAGE_GUESTS'), upload.single('file'), async (req, res) => {
   try {
     const { eventId } = req.params;
     if (!req.file) {
@@ -189,7 +189,7 @@ router.post('/:eventId/invitations/import', requireRole('admin'), upload.single(
 });
 
 // PUT /api/invitations/:id - Actualizar invitación existente (Solo Admin)
-router.put('/invitations/:id', requireRole('admin'), async (req, res) => {
+router.put('/invitations/:id', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { guest_name, guest_email, category_id, code, is_active } = req.body;
@@ -209,7 +209,7 @@ router.put('/invitations/:id', requireRole('admin'), async (req, res) => {
 });
 
 // PUT /api/invitations/:id/toggle - Activar o desactivar invitación (Solo Admin)
-router.put('/invitations/:id/toggle', requireRole('admin'), async (req, res) => {
+router.put('/invitations/:id/toggle', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -222,7 +222,7 @@ router.put('/invitations/:id/toggle', requireRole('admin'), async (req, res) => 
 });
 
 // POST /api/invitations/:id/regenerate - Regenerar código de invitación (Solo Admin)
-router.post('/invitations/:id/regenerate', requireRole('admin'), async (req, res) => {
+router.post('/invitations/:id/regenerate', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const newCode = generateUniqueInvitationCode('REGEN');
@@ -248,7 +248,7 @@ router.post('/invitations/:id/regenerate', requireRole('admin'), async (req, res
 });
 
 // DELETE /api/invitations/:id - Soft Delete de invitación (Solo Admin)
-router.delete('/invitations/:id', requireRole('admin'), async (req, res) => {
+router.delete('/invitations/:id', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await InvitationModel.softDelete(id);
@@ -263,7 +263,7 @@ router.delete('/invitations/:id', requireRole('admin'), async (req, res) => {
 });
 
 // POST /api/invitations/:id/restore - Restaurar invitación eliminada lógicamente (Solo Admin)
-router.post('/invitations/:id/restore', requireRole('admin'), async (req, res) => {
+router.post('/invitations/:id/restore', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     const restored = await InvitationModel.restore(id);
@@ -278,7 +278,7 @@ router.post('/invitations/:id/restore', requireRole('admin'), async (req, res) =
 });
 
 // DELETE /api/invitations/:id/permanent - Borrado definitivo de invitación (Solo Admin)
-router.delete('/invitations/:id/permanent', requireRole('admin'), async (req, res) => {
+router.delete('/invitations/:id/permanent', requirePermission('MANAGE_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
     await InvitationModel.permanentDelete(id);

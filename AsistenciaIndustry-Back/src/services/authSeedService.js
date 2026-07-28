@@ -29,7 +29,7 @@ export async function initAdminUser() {
             email_confirm: true,
             user_metadata: {
               full_name: adminName,
-              role: 'admin'
+              role: 'super_admin'
             }
           });
 
@@ -50,7 +50,7 @@ export async function initAdminUser() {
         options: {
           data: {
             full_name: adminName,
-            role: 'admin'
+            role: 'super_admin'
           }
         }
       });
@@ -80,17 +80,41 @@ export async function initAdminUser() {
       }
     }
 
-    // 4. Asegurar el registro en la tabla `events.users`
+    // 4. Asegurar que los roles base existan en la tabla de roles
+    const RoleModel = (await import('../models/roleModel.js')).RoleModel;
+    const { AVAILABLE_PERMISSIONS } = await import('../config/roles.js');
+    const allPerms = Object.keys(AVAILABLE_PERMISSIONS);
+    
+    for (const roleName of ['super_admin', 'admin', 'operator']) {
+      const existingRole = await RoleModel.findByName(roleName);
+      if (!existingRole) {
+        let perms = [];
+        if (roleName === 'super_admin') perms = allPerms;
+        if (roleName === 'admin') perms = allPerms.filter(p => p !== 'MANAGE_USERS'); // Admin no puede crear roles/usuarios por defecto
+        
+        await RoleModel.create({
+          name: roleName,
+          description: `Rol base del sistema: ${roleName}`,
+          permissions: perms
+        });
+        console.log(`✅ Rol base inicializado: ${roleName}`);
+      }
+    }
+
+    // 5. Asegurar el registro en la tabla `events.users`
     const existingUser = await UserModel.findByEmail(adminEmail);
     if (!existingUser && authUser) {
-      await UserModel.upsertUser({
+      await UserModel.create({
         id: authUser.id,
         email: adminEmail,
         full_name: adminName,
-        role: 'admin',
+        role: 'super_admin',
         is_active: true
       });
       console.log(`✅ Usuario Administrador inicializado exitosamente en events.users: ${adminEmail}`);
+    } else if (existingUser && existingUser.role !== 'super_admin') {
+      await UserModel.updateUser(existingUser.id, { role: 'super_admin' });
+      console.log(`✅ Usuario Administrador promovido a super_admin en events.users: ${adminEmail}`);
     } else {
       console.log(`ℹ️ Usuario Administrador verificado en el sistema: ${adminEmail}`);
     }
