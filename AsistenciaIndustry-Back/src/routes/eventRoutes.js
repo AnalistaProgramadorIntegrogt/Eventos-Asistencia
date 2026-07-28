@@ -118,6 +118,7 @@ router.put('/:id/email-config', requirePermission('EDIT_EVENTS'), async (req, re
     const currentConfig = existingEvent.email_config || {};
     const updatedEmailConfig = {
       ...currentConfig,
+      ...inputConfig,
       ...(rsvp_subject !== undefined ? { rsvp_subject } : {}),
       ...(rsvp_body !== undefined ? { rsvp_body } : {}),
       ...(ticket_subject !== undefined ? { ticket_subject } : {}),

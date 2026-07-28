@@ -29,6 +29,7 @@ const FIELD_TYPES = [
 const DEFAULT_FORM_CONFIG = {
   form_title: '',
   form_description: '',
+  submit_button_text: 'Completar Preregistro',
   fields: [
     { id: 'first_name', label: 'Nombre', visible: true, required: true, order: 1, locked: true },
     { id: 'last_name', label: 'Apellido', visible: true, required: true, order: 2, locked: true },
@@ -116,6 +117,7 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
               ...res.data.form_config,
               form_title: res.data.form_config.form_title || '',
               form_description: res.data.form_config.form_description || '',
+              submit_button_text: res.data.form_config.submit_button_text || 'Completar Preregistro',
               styling: {
                 ...DEFAULT_FORM_CONFIG.styling,
                 ...(res.data.form_config.styling || {})
@@ -157,6 +159,34 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
     [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
     const reordered = fields.map((f, i) => ({ ...f, order: i + 10 }));
     setFormConfig({ ...formConfig, custom_fields: reordered });
+    setSaved(false);
+  };
+
+  const setCustomFieldPosition = (customFieldId, targetPosition) => {
+    const combined = [
+      ...formConfig.fields.filter(f => f.id !== 'category').map(f => ({ ...f, fieldGroup: 'base' })),
+      ...(formConfig.custom_fields || []).map(f => ({ ...f, fieldGroup: 'custom' }))
+    ].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+
+    const currentIndex = combined.findIndex(f => f.fieldGroup === 'custom' && f.id === customFieldId);
+    if (currentIndex < 0) return;
+    const [moved] = combined.splice(currentIndex, 1);
+    combined.splice(targetPosition - 1, 0, moved);
+
+    const reordered = combined.map(({ fieldGroup, ...field }, index) => ({
+      ...field,
+      order: index + 1,
+      fieldGroup
+    }));
+    const categoryField = formConfig.fields.find(f => f.id === 'category');
+    setFormConfig({
+      ...formConfig,
+      fields: [
+        ...reordered.filter(f => f.fieldGroup === 'base').map(({ fieldGroup, ...f }) => f),
+        ...(categoryField ? [categoryField] : [])
+      ],
+      custom_fields: reordered.filter(f => f.fieldGroup === 'custom').map(({ fieldGroup, ...f }) => f)
+    });
     setSaved(false);
   };
 
@@ -206,7 +236,7 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
       id,
       options: optionsArray,
       visible: true,
-      order: (formConfig.custom_fields || []).length + 10
+      order: formConfig.fields.filter(f => f.id !== 'category').length + (formConfig.custom_fields || []).length + 1
     };
 
     setFormConfig({
@@ -250,12 +280,10 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
 
   const visibleFields = [
     ...formConfig.fields
-      .filter(f => f.visible && f.id !== 'category')
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+      .filter(f => f.visible && f.id !== 'category'),
     ...(formConfig.custom_fields || [])
       .filter(f => f.visible)
-      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
-  ];
+  ].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
   return (
     <div>
@@ -400,6 +428,18 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                       style={{ marginTop: '4px', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}
                     />
                     <Text type="secondary" style={{ fontSize: '0.76rem', marginTop: '4px', display: 'block' }}>💡 Puedes usar Enter para saltos de línea.</Text>
+                  </div>
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Texto del Botón de Envío:</Text>
+                    <Input
+                      value={formConfig.submit_button_text || ''}
+                      onChange={e => {
+                        setFormConfig({ ...formConfig, submit_button_text: e.target.value });
+                        setSaved(false);
+                      }}
+                      placeholder="Completar Preregistro"
+                      maxLength={80}
+                    />
                   </div>
                 </Space>
               </Card>
@@ -653,23 +693,18 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                           )}
                         </Space>
 
-                        {/* Up/Down arrows */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginRight: '6px' }}>
-                          <Button
-                            type="text" size="small"
-                            icon={<ArrowUpOutlined />}
-                            disabled={idx === 0}
-                            onClick={() => moveCustomField(idx, -1)}
-                            style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
+                        <Tooltip title="Posición entre todos los campos, incluidos los campos base">
+                          <Select
+                            size="small"
+                            value={field.order}
+                            onChange={(position) => setCustomFieldPosition(field.id, position)}
+                            style={{ width: '74px', marginRight: '6px' }}
+                            options={Array.from(
+                              { length: formConfig.fields.filter(f => f.id !== 'category').length + (formConfig.custom_fields || []).length },
+                              (_, position) => ({ value: position + 1, label: `#${position + 1}` })
+                            )}
                           />
-                          <Button
-                            type="text" size="small"
-                            icon={<ArrowDownOutlined />}
-                            disabled={idx === (formConfig.custom_fields || []).length - 1}
-                            onClick={() => moveCustomField(idx, 1)}
-                            style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
-                          />
-                        </div>
+                        </Tooltip>
 
                         <Button
                           type="text"
@@ -1237,7 +1272,7 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                               borderRadius: '8px'
                             }}
                           >
-                            Completar Preregistro
+                            {formConfig.submit_button_text || 'Completar Preregistro'}
                           </Button>
                         </div>
                       )}

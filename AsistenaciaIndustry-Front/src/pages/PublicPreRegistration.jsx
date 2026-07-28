@@ -135,7 +135,10 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
 
   const customFields = eventData.form_config?.custom_fields || [];
   // Exclude category from public form input fields
-  const allFields = [...baseFields.filter(f => f.visible && f.id !== 'category'), ...customFields.filter(f => f.visible)];
+  const allFields = [
+    ...baseFields.filter(f => f.visible && f.id !== 'category'),
+    ...customFields.filter(f => f.visible)
+  ].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: styling.primary_color || '#c3302d', fontFamily: 'Montserrat, sans-serif' } }}>
@@ -318,7 +321,7 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
                         borderRadius: '8px'
                       }}
                     >
-                      {submitting ? 'Enviando Preregistro...' : 'Completar Preregistro'}
+                      {submitting ? 'Enviando Preregistro...' : (eventData.form_config?.submit_button_text || 'Completar Preregistro')}
                     </Button>
                   </Form.Item>
                 </Form>

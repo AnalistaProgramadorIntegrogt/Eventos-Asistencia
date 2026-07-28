@@ -4,7 +4,6 @@ import { MailOutlined, SaveOutlined, UndoOutlined, CopyOutlined, CheckOutlined, 
 import { api } from '../services/apiService';
 import logoImg from '../assets/Logo.png';
 import { logoBase64 } from '../assets/logoBase64.js';
-import { wazeBase64 } from '../assets/wazeBase64.js';
 import wazeImg from '../assets/waze.png';
 
 const { Title, Text, Paragraph } = Typography;
@@ -15,6 +14,7 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
   const [resetting, setResetting] = useState(false);
   const [editorMode, setEditorMode] = useState('visual'); // visual | code
   const [wazeUrl, setWazeUrl] = useState('');
+  const [wazeDataUrl, setWazeDataUrl] = useState(wazeImg);
   const [selectedPreset, setSelectedPreset] = useState('principal');
 
   // Íntegro Official App Brand Palette
@@ -25,6 +25,19 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
   const [qrBorderColor, setQrBorderColor] = useState('#c3302d');
 
   const [form] = Form.useForm();
+
+  // Embed the actual assets/waze.png in saved emails, so email clients do not
+  // depend on a relative frontend URL.
+  useEffect(() => {
+    fetch(wazeImg)
+      .then((response) => response.blob())
+      .then((blob) => {
+        const reader = new FileReader();
+        reader.onloadend = () => setWazeDataUrl(reader.result);
+        reader.readAsDataURL(blob);
+      })
+      .catch(() => setWazeDataUrl(wazeImg));
+  }, []);
 
   // Watch form fields for live preview
   const subjectConf = Form.useWatch('subject_confirmation', form) || '';
@@ -247,12 +260,20 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
     try {
       const res = await api.events.getEmailConfig(selectedEventId);
       if (res && res.success !== false && res.data) {
-        const rawTpl = res.data.template_confirmation || res.data.ticket_body || res.data.ticket_template || res.data.template_invitation || principalTemplate.template_confirmation;
-        const rawSub = res.data.subject_confirmation || res.data.ticket_subject || res.data.subject_invitation || principalTemplate.subject_confirmation;
+        const savedConfig = res.data.email_config || res.data;
+        const rawTpl = savedConfig.template_confirmation_source || savedConfig.template_confirmation || savedConfig.ticket_body || savedConfig.ticket_template || savedConfig.template_invitation || principalTemplate.template_confirmation;
+        const rawSub = savedConfig.subject_confirmation || savedConfig.ticket_subject || savedConfig.subject_invitation || principalTemplate.subject_confirmation;
         form.setFieldsValue({
           subject_confirmation: rawSub,
-          template_confirmation: extractInnerHtml(rawTpl) || principalTemplate.template_confirmation
+          template_confirmation: savedConfig.template_confirmation_source || extractInnerHtml(rawTpl) || principalTemplate.template_confirmation
         });
+        setHeaderBgColor(savedConfig.header_bg_color || '#0a0a0b');
+        setHeaderTextColor(savedConfig.header_text_color || '#ffffff');
+        setTextColor(savedConfig.text_color || '#121214');
+        setBgColor(savedConfig.bg_color || '#ffffff');
+        setQrBorderColor(savedConfig.qr_border_color || '#c3302d');
+        setWazeUrl(savedConfig.waze_url || '');
+        setSelectedPreset(savedConfig.selected_preset || 'principal');
       } else {
         form.setFieldsValue(principalTemplate);
       }
@@ -299,7 +320,7 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
     const href = url && url.trim() ? url.trim() : '#';
     return `<div style="text-align:center; margin: 20px 0;">
   <a href="${href}" target="_blank" rel="noopener noreferrer" style="display:inline-block; text-decoration:none;">
-    <img src="${wazeBase64}" alt="Abrir en Waze" width="48" height="48"
+    <img src="${wazeDataUrl}" alt="Abrir en Waze" width="48" height="48"
          style="width:48px; height:48px; display:block; margin:0 auto 6px; border:0;"/>
     <span style="font-size:0.78rem; color:#33ccff; font-weight:700; font-family:Arial,sans-serif; letter-spacing:0.04em;">Ver en Waze</span>
   </a>
@@ -388,6 +409,7 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
 
         email_config: {
           subject_confirmation: values.subject_confirmation,
+          template_confirmation_source: values.template_confirmation,
           template_confirmation: confirmationDoc,
           ticket_subject: values.subject_confirmation,
           ticket_body: confirmationDoc,
@@ -396,7 +418,12 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
           rsvp_subject: values.subject_confirmation,
           rsvp_body: confirmationDoc,
           header_bg_color: headerBgColor,
-          qr_border_color: qrBorderColor
+          header_text_color: headerTextColor,
+          text_color: textColor,
+          bg_color: bgColor,
+          qr_border_color: qrBorderColor,
+          waze_url: wazeUrl,
+          selected_preset: selectedPreset
         }
       };
 
