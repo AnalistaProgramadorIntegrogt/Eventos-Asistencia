@@ -1,11 +1,34 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge, QRCode } from 'antd';
-import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { api } from '../services/apiService';
+import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge, QRCode, Popover } from 'antd';
+import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons';
+import { api, getStoredUser } from '../services/apiService';
 
 const { Title, Text } = Typography;
 
-export default function GuestManagement({ selectedEventId, embedded = false }) {
+export default function GuestManagement({ selectedEventId, embedded = false, currentUser }) {
+  const activeUser = currentUser || getStoredUser();
+  const isSuperAdmin = activeUser?.role === 'super_admin';
+  const isAdmin = activeUser?.role === 'admin' || isSuperAdmin;
+  const userPerms = activeUser?.permissions || [];
+
+  const hasPerm = (permKey) => {
+    if (isSuperAdmin) return true;
+    if (Array.isArray(userPerms) && userPerms.length > 0) {
+      return userPerms.includes(permKey);
+    }
+    if (isAdmin) return true;
+    return false;
+  };
+
+  const canImportExcel = hasPerm('IMPORT_GUESTS_EXCEL');
+  const canAddSingle = hasPerm('ADD_GUEST_SINGLE');
+  const canEditGuestInfo = hasPerm('EDIT_GUEST_INFO') || hasPerm('EDIT_GUEST');
+  const canEditGuestRSVP = hasPerm('EDIT_GUEST_RSVP') || hasPerm('EDIT_GUEST');
+  const canMarkAttendance = hasPerm('MARK_ATTENDANCE_MANUAL');
+  const canViewQR = hasPerm('VIEW_GUEST_QR');
+  const canCopyLink = hasPerm('COPY_GUEST_LINK');
+  const canRegenerateQR = hasPerm('REGENERATE_GUEST_QR');
+
   const [submissions, setSubmissions] = useState([]);
   const [summary, setSummary] = useState({ total_submissions: 0, confirmed_count: 0, pending_count: 0, declined_count: 0 });
   const [loading, setLoading] = useState(true);
@@ -14,12 +37,45 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'vip' | 'public'
   const [showSingleModal, setShowSingleModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingGuest, setEditingGuest] = useState(null);
   const [copiedCode, setCopiedCode] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrModalGuest, setQrModalGuest] = useState(null);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
+
+  const handleOpenEditGuest = (record) => {
+    setEditingGuest(record);
+    editForm.resetFields();
+    editForm.setFieldsValue({
+      guest_name: record.guest_name || record.full_name || `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+      guest_email: record.guest_email || record.email || '',
+      phone: record.phone || record.additional_data?.phone || '',
+      company: record.company || record.guest_company || record.empresa || record.additional_data?.empresa || record.additional_data?.company || '',
+      job_title: record.job_title || record.additional_data?.cargo || record.additional_data?.job_title || ''
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditGuest = async (values) => {
+    if (!editingGuest) return;
+    try {
+      const targetId = editingGuest.invitation_id || editingGuest.id;
+      const res = await api.invitations.update(targetId, values);
+      if (res.success) {
+        message.success('Datos del invitado actualizados correctamente.');
+        setShowEditModal(false);
+        fetchSubmissions(true);
+      } else {
+        message.error('Error actualizando invitado: ' + (res.error || 'Intente de nuevo.'));
+      }
+    } catch (err) {
+      message.error(err.message);
+    }
+  };
 
   // Realtime Polling State
   const [realtimeActive, setRealtimeActive] = useState(true);
@@ -157,14 +213,24 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
     }
   };
 
-  const copyLink = (inv) => {
+  const getGuestLink = (inv) => {
     const code = inv.invitation_code || inv.code || inv.qr_code;
     const baseLink = `${window.location.origin}/public/events/${selectedEventId}`;
-    const link = code ? `${baseLink}#${code}` : baseLink;
+    return code ? `${baseLink}#${code}` : baseLink;
+  };
+
+  const copyLink = (inv) => {
+    const link = getGuestLink(inv);
+    const code = inv.invitation_code || inv.code || inv.qr_code;
     navigator.clipboard.writeText(link);
     setCopiedCode(code || 'link');
     message.success('¡Enlace de invitación copiado!');
     setTimeout(() => setCopiedCode(null), 2500);
+  };
+
+  const openLinkInNewTab = (inv) => {
+    const link = getGuestLink(inv);
+    window.open(link, '_blank');
   };
 
   // Helper check if record is VIP / imported
@@ -256,6 +322,14 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
         const isVip = checkIsVip(record);
         const currentStatus = status || (record.is_active === false ? 'declined' : 'pending');
         
+        if (!canEditGuestRSVP) {
+          return (
+            <Tag color={currentStatus === 'confirmed' ? 'green' : currentStatus === 'declined' ? 'red' : 'orange'}>
+              {currentStatus === 'confirmed' ? (isVip ? 'VIP Registrado' : 'Confirmado') : currentStatus === 'declined' ? 'Cancelado' : 'Pendiente'}
+            </Tag>
+          );
+        }
+
         return (
           <Select
             value={currentStatus}
@@ -300,6 +374,9 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
         if (hasCheckedIn) {
           return <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontWeight: '600', padding: '4px 10px' }}>🟢 Asistió</Tag>;
         }
+        if (!canMarkAttendance) {
+          return <Tag color="default">No Autorizado</Tag>;
+        }
         return (
           <Button
             size="small"
@@ -318,34 +395,77 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
       key: 'actions',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="Ver y Descargar Código QR">
-            <Button
-              size="small"
-              icon={<QrcodeOutlined style={{ color: '#c3302d' }} />}
-              onClick={() => {
-                setQrModalGuest(record);
-                setQrModalVisible(true);
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Copiar Enlace Personalizado">
-            <Button
-              size="small"
-              icon={copiedCode === (record.invitation_code || record.code || record.qr_code) ? <CheckOutlined style={{ color: '#10b981' }} /> : <CopyOutlined />}
-              onClick={() => copyLink(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Regenerar Código QR">
-            <Popconfirm
-              title="¿Regenerar código?"
-              description="El código anterior dejará de ser válido."
-              onConfirm={() => handleRegenerate(record.id)}
-              okText="Sí, regenerar"
-              cancelText="Cancelar"
+          {canViewQR && (
+            <Tooltip title="Ver y Descargar Código QR">
+              <Button
+                size="small"
+                icon={<QrcodeOutlined style={{ color: '#c3302d' }} />}
+                onClick={() => {
+                  setQrModalGuest(record);
+                  setQrModalVisible(true);
+                }}
+              />
+            </Tooltip>
+          )}
+          {canCopyLink && (
+            <Popover
+              trigger="click"
+              placement="top"
+              content={
+                <div style={{ padding: '4px 2px', minWidth: '150px' }}>
+                  <Text strong style={{ display: 'block', marginBottom: '8px', fontSize: '0.8rem', color: '#475569' }}>
+                    Enlace Personalizado
+                  </Text>
+                  <Space direction="vertical" style={{ width: '100%' }} size="small">
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={copiedCode === (record.invitation_code || record.code || record.qr_code) ? <CheckOutlined /> : <CopyOutlined />}
+                      onClick={() => copyLink(record)}
+                      style={{ width: '100%', backgroundColor: '#1e293b', borderColor: '#1e293b' }}
+                    >
+                      Copiar Enlace
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<ExportOutlined />}
+                      onClick={() => openLinkInNewTab(record)}
+                      style={{ width: '100%' }}
+                    >
+                      Abrir en otra pestaña
+                    </Button>
+                  </Space>
+                </div>
+              }
             >
-              <Button size="small" icon={<ReloadOutlined />} />
-            </Popconfirm>
-          </Tooltip>
+              <Button
+                size="small"
+                icon={copiedCode === (record.invitation_code || record.code || record.qr_code) ? <CheckOutlined style={{ color: '#10b981' }} /> : <CopyOutlined />}
+              />
+            </Popover>
+          )}
+          {canEditGuestInfo && (
+            <Tooltip title="Editar Datos del Invitado">
+              <Button
+                size="small"
+                icon={<EditOutlined style={{ color: '#0284c7' }} />}
+                onClick={() => handleOpenEditGuest(record)}
+              />
+            </Tooltip>
+          )}
+          {canRegenerateQR && (
+            <Tooltip title="Regenerar Código QR">
+              <Popconfirm
+                title="¿Regenerar código?"
+                description="El código anterior dejará de ser válido."
+                onConfirm={() => handleRegenerate(record.id)}
+                okText="Sí, regenerar"
+                cancelText="Cancelar"
+              >
+                <Button size="small" icon={<ReloadOutlined />} />
+              </Popconfirm>
+            </Tooltip>
+          )}
         </Space>
       )
     }
@@ -364,18 +484,22 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
         </div>
 
         <Space wrap>
-          <Button icon={<UploadOutlined />} size={embedded ? "middle" : "large"} onClick={() => setShowImportModal(true)}>
-            Cargar Excel / CSV
-          </Button>
-          <Button
-            type="primary"
-            icon={<UserAddOutlined />}
-            size={embedded ? "middle" : "large"}
-            onClick={() => setShowSingleModal(true)}
-            style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
-          >
-            Agregar Invitado VIP
-          </Button>
+          {canImportExcel && (
+            <Button icon={<UploadOutlined />} size={embedded ? "middle" : "large"} onClick={() => setShowImportModal(true)}>
+              Cargar Excel / CSV
+            </Button>
+          )}
+          {canAddSingle && (
+            <Button
+              type="primary"
+              icon={<UserAddOutlined />}
+              size={embedded ? "middle" : "large"}
+              onClick={() => setShowSingleModal(true)}
+              style={{ backgroundColor: '#c3302d', borderColor: '#c3302d', fontWeight: '700' }}
+            >
+              Agregar Invitado VIP
+            </Button>
+          )}
         </Space>
       </div>
 
@@ -460,8 +584,11 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
           <Form.Item name="guest_name" label="Nombre Completo" rules={[{ required: true, message: 'Ingrese el nombre' }]}>
             <Input placeholder="Ej: Diego Medina" />
           </Form.Item>
-          <Form.Item name="guest_email" label="Correo Electrónico" rules={[{ required: true, type: 'email', message: 'Ingrese un correo válido' }]}>
-            <Input placeholder="ejemplo@empresa.com" />
+          <Form.Item name="guest_email" label="Correo Electrónico (Opcional)" rules={[{ type: 'email', message: 'Ingrese un correo válido' }]}>
+            <Input placeholder="ejemplo@empresa.com (opcional)" />
+          </Form.Item>
+          <Form.Item name="phone" label="Número de Teléfono (Opcional)">
+            <Input placeholder="Ej: +502 5555 1234" />
           </Form.Item>
           <Form.Item name="company" label="Empresa (Opcional)">
             <Input placeholder="Ej: Íntegro Desarrolladora" />
@@ -474,6 +601,41 @@ export default function GuestManagement({ selectedEventId, embedded = false }) {
               <Button onClick={() => setShowSingleModal(false)}>Cancelar</Button>
               <Button type="primary" htmlType="submit" style={{ backgroundColor: '#c3302d', borderColor: '#c3302d' }}>
                 Guardar Invitado VIP
+              </Button>
+            </Space>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* Modal Editar Invitado */}
+      <Modal
+        title={<Title level={4} style={{ margin: 0 }}>Editar Datos del Invitado</Title>}
+        open={showEditModal}
+        onCancel={() => setShowEditModal(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleSaveEditGuest} style={{ marginTop: '16px' }}>
+          <Form.Item name="guest_name" label="Nombre Completo" rules={[{ required: true, message: 'Ingrese el nombre' }]}>
+            <Input placeholder="Ej: Diego Medina" />
+          </Form.Item>
+          <Form.Item name="guest_email" label="Correo Electrónico (Opcional)" rules={[{ type: 'email', message: 'Ingrese un correo válido' }]}>
+            <Input placeholder="ejemplo@empresa.com (opcional)" />
+          </Form.Item>
+          <Form.Item name="phone" label="Número de Teléfono (Opcional)">
+            <Input placeholder="Ej: +502 5555 1234" />
+          </Form.Item>
+          <Form.Item name="company" label="Empresa (Opcional)">
+            <Input placeholder="Ej: Íntegro Desarrolladora" />
+          </Form.Item>
+          <Form.Item name="job_title" label="Cargo (Opcional)">
+            <Input placeholder="Ej: Director Comercial" />
+          </Form.Item>
+          <div style={{ textAlign: 'right', marginTop: '24px' }}>
+            <Space>
+              <Button onClick={() => setShowEditModal(false)}>Cancelar</Button>
+              <Button type="primary" htmlType="submit" style={{ backgroundColor: '#c3302d', borderColor: '#c3302d' }}>
+                Actualizar Invitado
               </Button>
             </Space>
           </div>

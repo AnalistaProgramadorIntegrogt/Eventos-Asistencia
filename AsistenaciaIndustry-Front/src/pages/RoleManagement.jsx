@@ -5,7 +5,7 @@ import { api } from '../services/apiService';
 
 const { Title, Text } = Typography;
 
-export default function RoleManagement({ permissionsCatalog }) {
+export default function RoleManagement({ permissionsCatalog, onRolesChange }) {
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -56,6 +56,7 @@ export default function RoleManagement({ permissionsCatalog }) {
           message.success('Rol actualizado exitosamente.');
           setShowModal(false);
           fetchRoles();
+          if (onRolesChange) onRolesChange();
         } else {
           message.error('Error: ' + res.error);
         }
@@ -65,6 +66,7 @@ export default function RoleManagement({ permissionsCatalog }) {
           message.success('Rol creado exitosamente.');
           setShowModal(false);
           fetchRoles();
+          if (onRolesChange) onRolesChange();
         } else {
           message.error('Error: ' + res.error);
         }
@@ -80,6 +82,7 @@ export default function RoleManagement({ permissionsCatalog }) {
       if (res.success) {
         message.success(`Rol ${name} eliminado.`);
         fetchRoles();
+        if (onRolesChange) onRolesChange();
       } else {
         message.error('Error: ' + res.error);
       }

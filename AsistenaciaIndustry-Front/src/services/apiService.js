@@ -10,10 +10,18 @@ export function getAuthToken() {
 }
 
 /**
- * Store Bearer authentication token and user profile
+ * Get stored refresh token from localStorage
  */
-export function setAuthSession(token, user) {
+export function getRefreshToken() {
+  return localStorage.getItem('integro_refresh_token') || '';
+}
+
+/**
+ * Store Bearer authentication token, refresh token, and user profile
+ */
+export function setAuthSession(token, user, refreshToken) {
   if (token) localStorage.setItem('integro_access_token', token);
+  if (refreshToken) localStorage.setItem('integro_refresh_token', refreshToken);
   if (user) localStorage.setItem('integro_user', JSON.stringify(user));
 }
 
@@ -22,6 +30,7 @@ export function setAuthSession(token, user) {
  */
 export function clearAuthSession() {
   localStorage.removeItem('integro_access_token');
+  localStorage.removeItem('integro_refresh_token');
   localStorage.removeItem('integro_user');
 }
 
@@ -39,11 +48,42 @@ export function getStoredUser() {
   }
 }
 
+let isRefreshingToken = false;
+
 /**
- * Helper to execute fetch request with Authorization Bearer header
+ * Renueva automáticamente la sesión usando el refresh_token
  */
-async function request(endpoint, options = {}) {
-  const token = getAuthToken();
+export async function refreshSessionToken() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken || isRefreshingToken) return null;
+  isRefreshingToken = true;
+
+  try {
+    const url = `${API_BASE_URL}/auth/refresh`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    const json = await res.json().catch(() => null);
+
+    if (res.ok && json?.success && json?.data) {
+      setAuthSession(json.data.access_token, json.data.user, json.data.refresh_token);
+      return json.data.access_token;
+    }
+  } catch (err) {
+    console.warn('Error renovando token:', err);
+  } finally {
+    isRefreshingToken = false;
+  }
+  return null;
+}
+
+/**
+ * Helper to execute fetch request with Authorization Bearer header and 401 auto-retry
+ */
+async function request(endpoint, options = {}, isRetry = false) {
+  let token = getAuthToken();
   const headers = {
     ...(options.headers || {})
   };
@@ -64,6 +104,14 @@ async function request(endpoint, options = {}) {
     headers
   });
 
+  // Reintento automático con refresh token si la API responde 401
+  if (response.status === 401 && !isRetry && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
+    const newToken = await refreshSessionToken();
+    if (newToken) {
+      return request(endpoint, options, true);
+    }
+  }
+
   const json = await response.json().catch(() => ({ success: false, error: 'Error parseando respuesta del servidor' }));
 
   if (!response.ok && json.error) {
@@ -79,6 +127,7 @@ export const api = {
     login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     microsoft: (redirectTo) => request(`/auth/microsoft?redirectTo=${encodeURIComponent(redirectTo)}`),
     me: () => request('/auth/me'),
+    refresh: () => refreshSessionToken(),
   },
 
   // 2. User CRUD Endpoints
@@ -156,29 +205,82 @@ export const api = {
         const invitations = (invRes.status === 'fulfilled' && invRes.value?.data) ? invRes.value.data : [];
 
         const combinedMap = new Map();
+        const invitationIdMap = new Map();
+        const codeMap = new Map();
+        const emailMap = new Map();
 
+        // 1. Cargar primero todas las invitaciones VIP
         invitations.forEach(inv => {
           const attendeeComp = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.company : (inv.attendees?.company || '');
           const attendeeJob = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.job_title : (inv.attendees?.job_title || '');
-          combinedMap.set(inv.id, {
+          
+          const cleanEmail = (inv.guest_email || inv.email || '').trim().toLowerCase();
+          const cleanCode = (inv.code || inv.invitation_code || '').trim().toLowerCase();
+
+          const invItem = {
             ...inv,
+            id: inv.id,
+            invitation_id: inv.id,
             full_name: inv.guest_name || inv.full_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim(),
-            email: inv.guest_email || inv.email,
+            email: inv.guest_email || inv.email || '',
             company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
             job_title: inv.job_title || attendeeJob || '',
             category_name: inv.category_name || (inv.event_categories ? inv.event_categories.name : 'VIP'),
-            is_imported: true
-          });
+            is_imported: true,
+            status: inv.status || (inv.is_active === false ? 'declined' : 'pending')
+          };
+
+          combinedMap.set(inv.id, invItem);
+          invitationIdMap.set(inv.id, invItem);
+          if (cleanCode) codeMap.set(cleanCode, invItem);
+          if (cleanEmail) emailMap.set(cleanEmail, invItem);
         });
 
+        // 2. Procesar formSubmissions (attendees) y fusionar con invitaciones sin duplicar
         formSubmissions.forEach(sub => {
-          if (!combinedMap.has(sub.id)) {
-            combinedMap.set(sub.id, {
-              ...sub,
-              company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
-              job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
-              category_name: sub.category_name || (sub.event_categories ? sub.event_categories.name : 'General')
-            });
+          const subEmail = (sub.email || '').trim().toLowerCase();
+          const subCode = (sub.invitation_code || sub.code || sub.qr_code || '').trim().toLowerCase();
+          const subInvId = sub.invitation_id;
+
+          let existing = null;
+          if (subInvId && invitationIdMap.has(subInvId)) {
+            existing = invitationIdMap.get(subInvId);
+          } else if (subCode && codeMap.has(subCode)) {
+            existing = codeMap.get(subCode);
+          } else if (subEmail && emailMap.has(subEmail)) {
+            existing = emailMap.get(subEmail);
+          }
+
+          if (existing) {
+            existing.attendee_id = sub.id;
+            if (sub.status && sub.status !== 'pending') {
+              existing.status = sub.status;
+            }
+            if (sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa) {
+              existing.company = sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa;
+            }
+            if (sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo) {
+              existing.job_title = sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo;
+            }
+            if (sub.qr_code) {
+              existing.qr_code = sub.qr_code;
+            }
+          } else {
+            if (!combinedMap.has(sub.id) && (!subEmail || !emailMap.has(subEmail))) {
+              const newItem = {
+                ...sub,
+                id: sub.id,
+                full_name: sub.full_name || `${sub.first_name || ''} ${sub.last_name || ''}`.trim() || 'Asistente',
+                email: sub.email || '',
+                company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
+                job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
+                category_name: sub.category_name || (sub.event_categories ? sub.event_categories.name : 'General'),
+                is_imported: false,
+                is_public_registration: true
+              };
+              combinedMap.set(sub.id, newItem);
+              if (subEmail) emailMap.set(subEmail, newItem);
+            }
           }
         });
 

@@ -3,6 +3,15 @@ import { supabase } from '../config/supabase.js';
 import { PERMISSIONS } from '../config/roles.js';
 
 export function resolveUserPermissions(roleName, rolePerms = [], userPerms = []) {
+  const rPerms = Array.isArray(rolePerms) ? rolePerms : [];
+  const uPerms = Array.isArray(userPerms) ? userPerms : [];
+
+  // Si existen permisos personalizados en la base de datos para el rol, esos mandan
+  if (rPerms.length > 0) {
+    return Array.from(new Set([...rPerms, ...uPerms]));
+  }
+
+  // Si el rol no tiene permisos definidos en BD, usar la configuración base de roles.js
   const configPerms = [];
   if (roleName) {
     for (const [permKey, allowedRoles] of Object.entries(PERMISSIONS)) {
@@ -11,9 +20,7 @@ export function resolveUserPermissions(roleName, rolePerms = [], userPerms = [])
       }
     }
   }
-  const rPerms = Array.isArray(rolePerms) ? rolePerms : [];
-  const uPerms = Array.isArray(userPerms) ? userPerms : [];
-  return Array.from(new Set([...configPerms, ...rPerms, ...uPerms]));
+  return Array.from(new Set([...configPerms, ...uPerms]));
 }
 
 /**

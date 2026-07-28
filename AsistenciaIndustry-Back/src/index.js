@@ -41,15 +41,16 @@ app.use('/api/auth', authRoutes);
 // Rutas Protegidas (requieren autenticación JWT)
 app.use('/api/events', authenticateToken, eventRoutes);
 app.use('/api/events', authenticateToken, invitationRoutes);
+app.use('/api', authenticateToken, invitationRoutes);
 app.use('/api/events', authenticateToken, attendeeRoutes);
 app.use('/api', authenticateToken, attendeeRoutes);
 app.use('/api/checkin', authenticateToken, checkinRoutes);
 app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 app.use('/api/trash', authenticateToken, requirePermission('DELETE_EVENTS'), trashRoutes);
 
-// Gestión de Usuarios (requiere autenticación y rol de Admin)
-app.use('/api/users', authenticateToken, requirePermission('MANAGE_USERS'), userRoutes);
-app.use('/api/roles', authenticateToken, requirePermission('MANAGE_USERS'), roleRoutes);
+// Gestión de Usuarios y Roles
+app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/roles', authenticateToken, roleRoutes);
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {

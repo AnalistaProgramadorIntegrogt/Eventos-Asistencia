@@ -23,10 +23,13 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     if (attError) throw attError;
 
-    const totalPreregistered = attendees ? attendees.length : 0;
-    const totalAttended = attendees ? attendees.filter(a => a.status === 'checked_in').length : 0;
-    const totalPending = attendees ? attendees.filter(a => a.status === 'pending').length : 0;
-    const totalNoShow = attendees ? attendees.filter(a => a.status === 'no_show').length : 0;
+    const publicRegistrations = (attendees || []).filter(a => a.is_public_registration === true || a.status === 'confirmed');
+    const totalPreregistered = publicRegistrations.length;
+    const totalAttended = (attendees || []).filter(a => a.status === 'checked_in').length;
+    const totalNoShow = (attendees || []).filter(a => a.status === 'no_show').length;
+    const totalInv = totalInvitations || 0;
+    const publicPendingCount = publicRegistrations.filter(a => a.status !== 'checked_in' && a.status !== 'no_show').length;
+    const totalPending = Math.max(0, totalInv + publicPendingCount - totalAttended - totalNoShow);
 
     // 3. Obtener check-ins para gráfico por horas
     const { data: checkins } = await supabase

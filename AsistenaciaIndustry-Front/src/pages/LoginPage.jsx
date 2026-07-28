@@ -16,7 +16,7 @@ export default function LoginPage({ onLoginSuccess }) {
     try {
       const res = await api.auth.login(values.email, values.password);
       if (res.success && res.data) {
-        setAuthSession(res.data.access_token, res.data.user);
+        setAuthSession(res.data.access_token, res.data.user, res.data.refresh_token);
         onLoginSuccess(res.data.user);
       } else {
         setErrorMsg(res.error || 'Credenciales no válidas. Por favor intente de nuevo.');

@@ -74,7 +74,8 @@ export default function App() {
       api.auth.me()
         .then((res) => {
           if (res.success && res.data) {
-            setAuthSession(getAuthToken(), res.data);
+            const refToken = localStorage.getItem('integro_refresh_token');
+            setAuthSession(getAuthToken(), res.data, refToken);
             setCurrentUser(res.data);
           }
         })

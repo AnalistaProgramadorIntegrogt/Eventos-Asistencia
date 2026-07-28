@@ -89,4 +89,53 @@ router.get('/me', authenticateToken, (req, res) => {
   });
 });
 
+// POST /api/auth/refresh - Refrescar sesión con refresh_token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+
+    if (!refresh_token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token de refresco no proporcionado.'
+      });
+    }
+
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession({
+      refresh_token
+    });
+
+    if (refreshError || !refreshData.session) {
+      return res.status(401).json({
+        success: false,
+        error: 'La sesión ha expirado o es inválida.'
+      });
+    }
+
+    const { user, session } = refreshData;
+    const userRecord = await UserModel.findById(user.id);
+
+    res.json({
+      success: true,
+      message: 'Sesión renovada exitosamente',
+      data: {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_in: session.expires_in,
+        user: {
+          id: user.id,
+          email: user.email,
+          full_name: userRecord?.full_name || user.user_metadata?.full_name || user.email,
+          role: userRecord?.role || user.user_metadata?.role || 'operator',
+          permissions: userRecord?.permissions || [],
+          is_active: userRecord?.is_active ?? true
+        }
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

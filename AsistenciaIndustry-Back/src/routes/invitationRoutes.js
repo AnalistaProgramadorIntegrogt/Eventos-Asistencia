@@ -63,10 +63,10 @@ router.get('/invitations/:id', requirePermission('VIEW_GUESTS'), async (req, res
 });
 
 // POST /api/events/:eventId/invitations - Crear invitación manual (Solo Admin)
-router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (req, res) => {
+router.post('/:eventId/invitations', requirePermission('ADD_GUEST_SINGLE'), async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { guest_name, guest_email, category_id, custom_code, company, job_title } = req.body;
+    const { guest_name, guest_email, phone, category_id, custom_code, company, job_title } = req.body;
 
     const code = custom_code || generateUniqueInvitationCode('INV');
 
@@ -79,14 +79,14 @@ router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (
       is_active: true
     });
 
-    // Guardar registro en attendees para preservar la empresa y cargo
-    if (company || job_title) {
+    // Guardar registro en attendees para preservar empresa, cargo y teléfono
+    if (company || job_title || phone) {
       const rawName = guest_name || 'Invitado VIP';
       const nameParts = rawName.trim().split(' ');
       const firstName = nameParts[0] || 'Invitado';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      await supabase.from('attendees').insert([{
+      const attendeePayload = {
         event_id: eventId,
         invitation_id: newInv.id,
         category_id: category_id || null,
@@ -98,8 +98,16 @@ router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (
         qr_code: generateUniqueAttendeeCode(),
         status: 'pending',
         is_public_registration: false,
-        additional_data: {}
-      }]);
+        additional_data: { phone: phone || '' }
+      };
+
+      if (phone) attendeePayload.phone = phone;
+
+      await supabase.from('attendees').insert([attendeePayload]).catch(err => {
+        // Fallback por si la columna física phone no existe aún en esquema Supabase
+        delete attendeePayload.phone;
+        return supabase.from('attendees').insert([attendeePayload]);
+      });
     }
 
     res.status(201).json({ success: true, data: formatInvitationResponse(newInv) });
@@ -109,7 +117,7 @@ router.post('/:eventId/invitations', requirePermission('MANAGE_GUESTS'), async (
 });
 
 // POST /api/events/:eventId/invitations/import - Importar masivo desde Excel / CSV (Solo Admin)
-router.post('/:eventId/invitations/import', requirePermission('MANAGE_GUESTS'), upload.single('file'), async (req, res) => {
+router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXCEL'), upload.single('file'), async (req, res) => {
   try {
     const { eventId } = req.params;
     if (!req.file) {
@@ -222,11 +230,11 @@ router.post('/:eventId/invitations/import', requirePermission('MANAGE_GUESTS'), 
   }
 });
 
-// PUT /api/invitations/:id - Actualizar invitación existente (Solo Admin)
-router.put('/invitations/:id', requirePermission('MANAGE_GUESTS'), async (req, res) => {
+// PUT /api/invitations/:id - Actualizar información del invitado (Solo Admin con permiso EDIT_GUEST_INFO o EDIT_GUEST)
+router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST']), async (req, res) => {
   try {
     const { id } = req.params;
-    const { guest_name, guest_email, category_id, code, is_active } = req.body;
+    const { guest_name, guest_email, company, job_title, phone, category_id, code, is_active } = req.body;
 
     const updates = {};
     if (guest_name !== undefined) updates.guest_name = guest_name;
@@ -236,14 +244,49 @@ router.put('/invitations/:id', requirePermission('MANAGE_GUESTS'), async (req, r
     if (is_active !== undefined) updates.is_active = is_active;
 
     const updated = await InvitationModel.update(id, updates);
+
+    // Actualizar también en la tabla attendees si existe registro vinculado
+    const { data: existingAttendee } = await supabase
+      .from('attendees')
+      .select('*')
+      .eq('invitation_id', id)
+      .maybeSingle();
+
+    if (existingAttendee) {
+      const attUpdates = {};
+      if (guest_name !== undefined) {
+        const nameParts = guest_name.trim().split(' ');
+        attUpdates.first_name = nameParts[0] || 'Invitado';
+        attUpdates.last_name = nameParts.slice(1).join(' ') || '';
+      }
+      if (guest_email !== undefined) attUpdates.email = guest_email;
+      if (company !== undefined) attUpdates.company = company;
+      if (job_title !== undefined) attUpdates.job_title = job_title;
+      if (phone !== undefined) {
+        attUpdates.additional_data = { ...(existingAttendee.additional_data || {}), phone };
+        attUpdates.phone = phone;
+      }
+
+      if (Object.keys(attUpdates).length > 0) {
+        await supabase
+          .from('attendees')
+          .update(attUpdates)
+          .eq('invitation_id', id)
+          .catch(err => {
+            delete attUpdates.phone;
+            return supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
+          });
+      }
+    }
+
     res.json({ success: true, data: formatInvitationResponse(updated) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// PUT /api/invitations/:id/toggle - Activar o desactivar invitación (Solo Admin)
-router.put('/invitations/:id/toggle', requirePermission('MANAGE_GUESTS'), async (req, res) => {
+// PUT /api/invitations/:id/toggle - Activar o desactivar invitación / cambiar RSVP (Solo Admin)
+router.put('/invitations/:id/toggle', requirePermission(['EDIT_GUEST_RSVP', 'EDIT_GUEST']), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active } = req.body;
@@ -256,7 +299,7 @@ router.put('/invitations/:id/toggle', requirePermission('MANAGE_GUESTS'), async 
 });
 
 // POST /api/invitations/:id/regenerate - Regenerar código de invitación (Solo Admin)
-router.post('/invitations/:id/regenerate', requirePermission('MANAGE_GUESTS'), async (req, res) => {
+router.post('/invitations/:id/regenerate', requirePermission('REGENERATE_GUEST_QR'), async (req, res) => {
   try {
     const { id } = req.params;
     const newCode = generateUniqueInvitationCode('REGEN');
@@ -282,7 +325,7 @@ router.post('/invitations/:id/regenerate', requirePermission('MANAGE_GUESTS'), a
 });
 
 // DELETE /api/invitations/:id - Soft Delete de invitación (Solo Admin)
-router.delete('/invitations/:id', requirePermission('MANAGE_GUESTS'), async (req, res) => {
+router.delete('/invitations/:id', requirePermission('DELETE_GUEST'), async (req, res) => {
   try {
     const { id } = req.params;
     const deleted = await InvitationModel.softDelete(id);

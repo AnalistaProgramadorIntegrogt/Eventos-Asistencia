@@ -6,6 +6,22 @@ import { api } from '../services/apiService';
 const { Title, Text } = Typography;
 
 export default function ManualCheckIn({ selectedEventId, currentUser }) {
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || isSuperAdmin;
+  const userPerms = currentUser?.permissions || [];
+
+  const hasPerm = (permKey) => {
+    if (isSuperAdmin) return true;
+    if (Array.isArray(userPerms) && userPerms.length > 0) {
+      return userPerms.includes(permKey);
+    }
+    if (isAdmin) return true;
+    return false;
+  };
+
+  const canMark = hasPerm('MARK_ATTENDANCE_MANUAL');
+  const canUnmark = hasPerm('UNMARK_ATTENDANCE_MANUAL');
+
   const [query, setQuery] = useState('');
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -117,26 +133,32 @@ export default function ManualCheckIn({ selectedEventId, currentUser }) {
       key: 'actions',
       render: (_, r) => {
         const isCheckedIn = r.status === 'checked_in';
-        return !isCheckedIn ? (
-          <Button
-            type="primary"
-            size="small"
-            icon={<CheckOutlined />}
-            style={{ backgroundColor: '#059669', borderColor: '#059669' }}
-            onClick={() => setMarkModal(r)}
-          >
-            Marcar Asistencia
-          </Button>
-        ) : (
-          <Button
-            size="small"
-            icon={<CloseOutlined />}
-            danger
-            onClick={() => setUnmarkModal(r)}
-          >
-            Desmarcar
-          </Button>
-        );
+        if (!isCheckedIn) {
+          if (!canMark) return <Tag color="default">Sin permiso para marcar</Tag>;
+          return (
+            <Button
+              type="primary"
+              size="small"
+              icon={<CheckOutlined />}
+              style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+              onClick={() => setMarkModal(r)}
+            >
+              Marcar Asistencia
+            </Button>
+          );
+        } else {
+          if (!canUnmark) return <Tag color="success">🟢 Asistió</Tag>;
+          return (
+            <Button
+              size="small"
+              icon={<CloseOutlined />}
+              danger
+              onClick={() => setUnmarkModal(r)}
+            >
+              Desmarcar
+            </Button>
+          );
+        }
       }
     }
   ];

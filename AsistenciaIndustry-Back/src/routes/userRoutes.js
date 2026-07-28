@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase, supabaseAdmin } from '../config/supabase.js';
 import { UserModel } from '../models/userModel.js';
+import { RoleModel } from '../models/roleModel.js';
 import { prisma } from '../config/prisma.js';
 import { requirePermission } from '../middleware/authMiddleware.js';
 import { AVAILABLE_PERMISSIONS } from '../config/roles.js';
@@ -8,7 +9,7 @@ import { AVAILABLE_PERMISSIONS } from '../config/roles.js';
 const router = Router();
 
 // GET /api/users - Listar todos los usuarios (admite búsqueda por query, filtro por rol y estado Soft Delete)
-router.get('/', requirePermission('VIEW_USERS'), async (req, res) => {
+router.get('/', requirePermission(['VIEW_USERS', 'MANAGE_USERS']), async (req, res) => {
   try {
     const { search, role, includeDeleted, onlyDeleted } = req.query;
     const users = await UserModel.findAll({
@@ -60,10 +61,12 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (!['admin', 'operator'].includes(role)) {
+    const dbRoles = await RoleModel.findAll();
+    const validNames = new Set(['super_admin', 'admin', 'operator', ...dbRoles.map(r => r.name)]);
+    if (!validNames.has(role)) {
       return res.status(400).json({
         success: false,
-        error: 'El rol debe ser "admin" u "operator".'
+        error: `El rol '${role}' no es válido en el sistema.`
       });
     }
 
@@ -152,11 +155,15 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
     }
 
-    if (role && !['admin', 'operator'].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        error: 'El rol debe ser "admin" u "operator".'
-      });
+    if (role) {
+      const dbRoles = await RoleModel.findAll();
+      const validNames = new Set(['super_admin', 'admin', 'operator', ...dbRoles.map(r => r.name)]);
+      if (!validNames.has(role)) {
+        return res.status(400).json({
+          success: false,
+          error: `El rol '${role}' no es válido en el sistema.`
+        });
+      }
     }
 
     // 1. Actualizar datos en events.users

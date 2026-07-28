@@ -25,15 +25,16 @@ export default function AuthCallback() {
       }
 
       const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
 
       if (accessToken) {
         // Establecer temporalmente para que api.auth.me pueda usarlo
-        setAuthSession(accessToken, null);
+        setAuthSession(accessToken, null, refreshToken);
         
         try {
           const res = await api.auth.me();
           if (res.success && res.data) {
-            setAuthSession(accessToken, res.data);
+            setAuthSession(accessToken, res.data, refreshToken);
             window.location.href = '/';
           } else {
             alert(`Error del backend: no se pudo obtener el perfil de usuario. Intente de nuevo.`);

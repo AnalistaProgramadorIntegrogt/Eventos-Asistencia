@@ -79,13 +79,16 @@ export function requirePermission(permissionKey) {
       });
     }
 
-    const userHasPerm = (req.user.permissions && req.user.permissions.includes(permissionKey)) || hasPermission(req.user.role, permissionKey);
+    const keys = Array.isArray(permissionKey) ? permissionKey : [permissionKey];
+    const userPerms = req.user.permissions || [];
+
+    const userHasPerm = keys.some(key => userPerms.length > 0 ? userPerms.includes(key) : hasPermission(req.user.role, key));
 
     // Súper Administrador siempre tiene acceso
     if (!userHasPerm && req.user.role !== 'super_admin') {
       return res.status(403).json({ 
         success: false, 
-        error: `Acceso restringido. No tiene permisos para realizar esta acción (${permissionKey}).` 
+        error: `Acceso restringido. No tiene permisos para realizar esta acción (${keys.join(', ')}).` 
       });
     }
 

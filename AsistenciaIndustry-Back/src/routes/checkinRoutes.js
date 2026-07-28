@@ -5,7 +5,7 @@ import { requirePermission } from '../middleware/authMiddleware.js';
 const router = Router();
 
 // POST /api/checkin/scan - Escaneo rápido con Lector QR de teclado (Admin y Operador)
-router.post('/scan', requirePermission('SCAN_QR'), async (req, res) => {
+router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
   try {
     const { event_id, qr_code, operator_id, operator_name } = req.body;
 
@@ -168,7 +168,7 @@ router.get('/events/:eventId/search', requirePermission('SCAN_QR'), async (req, 
 });
 
 // POST /api/checkin/manual - Marcar asistencia manualmente (Admin y Operador)
-router.post('/manual', requirePermission('SCAN_QR'), async (req, res) => {
+router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, res) => {
   try {
     const { event_id, attendee_id, operator_id, operator_name } = req.body;
 
@@ -277,7 +277,7 @@ router.post('/manual', requirePermission('SCAN_QR'), async (req, res) => {
 });
 
 // POST /api/checkin/manual/uncheck - Desmarcar asistencia manualmente (Solo Admin - PRD 5.1)
-router.post('/manual/uncheck', requirePermission('MANUAL_CHECKIN'), async (req, res) => {
+router.post('/manual/uncheck', requirePermission('UNMARK_ATTENDANCE_MANUAL'), async (req, res) => {
   try {
     const { event_id, attendee_id, operator_id, operator_name, reason } = req.body;
 

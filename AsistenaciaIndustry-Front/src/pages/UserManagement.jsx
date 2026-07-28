@@ -49,7 +49,21 @@ export default function UserManagement({ currentUser }) {
     fetchPermissionsAndRoles();
   }, [roleFilter]);
 
+  const allRoleOptions = React.useMemo(() => {
+    const defaultRoleNames = ['super_admin', 'admin', 'operator'];
+    const customRoleNames = rolesList.map(r => r.name);
+    const combined = Array.from(new Set([...defaultRoleNames, ...customRoleNames]));
+    return combined.map(name => {
+      const roleObj = rolesList.find(r => r.name === name);
+      return {
+        value: name,
+        label: roleObj && roleObj.description ? `${name} — ${roleObj.description}` : name
+      };
+    });
+  }, [rolesList]);
+
   const handleOpenCreate = () => {
+    fetchPermissionsAndRoles();
     setEditingUser(null);
     form.resetFields();
     form.setFieldsValue({ role: 'operator', permissions: [], is_active: true });
@@ -57,6 +71,7 @@ export default function UserManagement({ currentUser }) {
   };
 
   const handleOpenEdit = (user) => {
+    fetchPermissionsAndRoles();
     setEditingUser(user);
     form.resetFields();
     form.setFieldsValue({
@@ -194,17 +209,17 @@ export default function UserManagement({ currentUser }) {
             <Select
               value={roleFilter}
               onChange={setRoleFilter}
-              style={{ width: '180px' }}
+              style={{ width: '200px' }}
               options={[
                 { value: '', label: 'Todos los Roles' },
-                ...rolesList.map(r => ({ value: r.name, label: r.name }))
+                ...allRoleOptions
               ]}
             />
 
             <Button icon={<SearchOutlined />} onClick={fetchUsers}>Buscar</Button>
           </Space>
 
-          <Button icon={<ReloadOutlined />} onClick={fetchUsers} />
+          <Button icon={<ReloadOutlined />} onClick={() => { fetchUsers(); fetchPermissionsAndRoles(); }} />
         </Space>
       </Card>
 
@@ -258,7 +273,7 @@ export default function UserManagement({ currentUser }) {
             rules={[{ required: true }]}
           >
             <Select
-              options={rolesList.map(r => ({ value: r.name, label: r.name }))}
+              options={allRoleOptions}
             />
           </Form.Item>
 
@@ -323,7 +338,8 @@ export default function UserManagement({ currentUser }) {
       </div>
 
       <Tabs 
-        defaultActiveKey="1" 
+        defaultActiveKey="1"
+        onChange={() => fetchPermissionsAndRoles()} 
         items={[
           {
             key: '1',
@@ -333,7 +349,7 @@ export default function UserManagement({ currentUser }) {
           {
             key: '2',
             label: 'Roles y Permisos',
-            children: <RoleManagement permissionsCatalog={permissionsCatalog} />,
+            children: <RoleManagement permissionsCatalog={permissionsCatalog} onRolesChange={fetchPermissionsAndRoles} />,
           },
         ]}
       />
