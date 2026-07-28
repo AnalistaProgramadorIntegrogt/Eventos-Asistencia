@@ -200,9 +200,9 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
                   </Title>
                 }
                 subTitle={
-                  <Text style={{ display: 'block', color: (eventData.form_config?.success_screen?.subtitle_color) || '#59585a', fontSize: '0.95rem', marginTop: '6px' }}>
+                  <div style={{ color: (eventData.form_config?.success_screen?.subtitle_color) || '#59585a', fontSize: '0.95rem', marginTop: '6px', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
                     {((eventData.form_config?.success_screen?.subtitle) || `Tu registro para {event_name} se ha completado correctamente.`).replace('{event_name}', eventData?.name || 'el evento')}
-                  </Text>
+                  </div>
                 }
                 extra={[
                   <Alert
@@ -216,9 +216,9 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
                       </Text>
                     }
                     description={
-                      <span style={{ color: (eventData.form_config?.success_screen?.alert_text_color) || '#1e293b' }}>
+                      <div style={{ color: (eventData.form_config?.success_screen?.alert_text_color) || '#1e293b', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
                         {(eventData.form_config?.success_screen?.alert_description) || 'Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail. Por favor revisa tu bandeja de entrada (o correo no deseado). Deberás presentar dicho Código QR al ingresar al evento.'}
-                      </span>
+                      </div>
                     }
                     style={{
                       textAlign: 'left',
@@ -235,11 +235,11 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
               <div>
                 <div style={{ textAlign: 'center', marginBottom: '28px' }}>
                   <Title level={3} style={{ margin: '0 0 6px', fontWeight: '800', color: styling.text_color || '#000000' }}>
-                    {eventData.name}<span style={{ color: styling.primary_color || '#c3302d' }}>.</span>
+                    {eventData.form_config?.form_title || eventData.name}<span style={{ color: styling.primary_color || '#c3302d' }}>.</span>
                   </Title>
-                  <Text type="secondary" style={{ fontSize: '0.9rem', color: '#59585a' }}>
-                    {eventData.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
-                  </Text>
+                  <div style={{ fontSize: '0.9rem', color: '#59585a', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                    {eventData.form_config?.form_description || eventData.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
+                  </div>
                 </div>
 
                 {eventData.invitation_code_required && (

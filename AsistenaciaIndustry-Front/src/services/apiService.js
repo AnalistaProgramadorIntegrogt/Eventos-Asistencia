@@ -153,6 +153,16 @@ export const api = {
     delete: (name) => request(`/roles/${name}`, { method: 'DELETE' })
   },
 
+  // Upload Endpoints
+  uploadMedia: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request('/upload', {
+      method: 'POST',
+      body: formData
+    });
+  },
+
   // 3. Events Endpoints
   events: {
     list: () => request('/events'),

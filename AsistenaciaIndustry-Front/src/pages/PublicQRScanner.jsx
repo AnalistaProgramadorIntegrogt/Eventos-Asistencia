@@ -341,7 +341,23 @@ export default function PublicQRScanner({ eventId: propEventId }) {
     ? (cfg.event_tagline || `${eventData?.name || 'INNOVA PARK'} - Event`)
     : null;
 
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    const apiBase = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' && window.location.port !== '5001'
+      ? 'http://localhost:5001/api'
+      : '/api');
+    
+    const serverHost = apiBase.startsWith('http') ? new URL(apiBase).origin : '';
+    return `${serverHost}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
   const BG_VIDEO = sty.bg_video_url || '';
+  const BG_IMAGE = sty.bg_image_url || '';
+  const resolvedVideoUrl = resolveMediaUrl(BG_VIDEO);
+  const resolvedImageUrl = resolveMediaUrl(BG_IMAGE);
 
   return (
     <div style={{
@@ -354,14 +370,27 @@ export default function PublicQRScanner({ eventId: propEventId }) {
       backgroundColor: sty.background_color || '#FBF8FD',
       overflow:   'hidden',
     }}>
+      {/* ── Foto de fondo (si está configurada y no hay video) ── */}
+      {BG_IMAGE && !BG_VIDEO && (
+        <div style={{
+          position:           'absolute',
+          inset:              0,
+          backgroundImage:    `url(${resolvedImageUrl})`,
+          backgroundSize:     'cover',
+          backgroundPosition: 'center',
+          zIndex:             0,
+        }} />
+      )}
+
       {/* ── Video de fondo (si está configurado) ── */}
       {BG_VIDEO && (
         <video
-          key={BG_VIDEO}
+          key={resolvedVideoUrl}
           autoPlay
           loop
           muted
           playsInline
+          preload="auto"
           style={{
             position:   'absolute',
             inset:      0,
@@ -370,12 +399,12 @@ export default function PublicQRScanner({ eventId: propEventId }) {
             objectFit:  'cover',
             zIndex:     0,
           }}
-          src={BG_VIDEO}
+          src={resolvedVideoUrl}
         />
       )}
 
-      {/* ── Overlay semitransparente sobre el video (opcional, mejora legibilidad) ── */}
-      {BG_VIDEO && (
+      {/* ── Overlay semitransparente sobre el video / imagen (opcional, mejora legibilidad) ── */}
+      {(BG_VIDEO || BG_IMAGE) && (
         <div style={{
           position:        'absolute',
           inset:           0,

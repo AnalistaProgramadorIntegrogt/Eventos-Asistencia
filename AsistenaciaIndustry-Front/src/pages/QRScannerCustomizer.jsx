@@ -122,9 +122,39 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
       .finally(() => setLoading(false));
   }, [activeEventId]);
 
-  const handleFileUpload = (file, isStylingField, keyName) => {
+  const handleFileUpload = async (file, isStylingField, keyName) => {
+    const hideMsg = message.loading('Subiendo archivo multimedia...', 0);
+    try {
+      const res = await api.uploadMedia(file);
+      hideMsg();
+      if (res && res.success && res.url) {
+        const fileUrl = res.url;
+        if (isStylingField) {
+          setFormConfig(prev => ({
+            ...prev,
+            styling: {
+              ...prev.styling,
+              [keyName]: fileUrl
+            }
+          }));
+        } else {
+          setFormConfig(prev => ({
+            ...prev,
+            [keyName]: fileUrl
+          }));
+        }
+        setSaved(false);
+        message.success('✅ Archivo subido y configurado correctamente.');
+        return false;
+      }
+    } catch (err) {
+      console.warn('Fallo subida al servidor, usando fallback local Base64:', err);
+    }
+    
+    // Fallback local a Base64 si el upload falla o no está disponible
     const reader = new FileReader();
     reader.onload = (e) => {
+      hideMsg();
       const base64Data = e.target.result;
       if (isStylingField) {
         setFormConfig(prev => ({
@@ -154,8 +184,7 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
     }
     setSaving(true);
     try {
-      await api.events.updateFormConfig(activeEventId, formConfig);
-      const res = await api.events.update(activeEventId, { form_config: formConfig });
+      const res = await api.events.updateFormConfig(activeEventId, formConfig);
       if (res.success !== false) {
         message.success('✅ Configuración del Lector QR guardada exitosamente.');
         setSaved(true);
@@ -163,7 +192,7 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
         message.error('Error al guardar: ' + (res.error || 'Intente nuevamente.'));
       }
     } catch (err) {
-      message.error(err.message);
+      message.error(err.message || 'Error al guardar la configuración');
     } finally {
       setSaving(false);
     }

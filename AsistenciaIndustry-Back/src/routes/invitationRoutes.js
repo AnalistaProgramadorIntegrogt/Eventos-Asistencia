@@ -103,11 +103,16 @@ router.post('/:eventId/invitations', requirePermission('ADD_GUEST_SINGLE'), asyn
 
       if (phone) attendeePayload.phone = phone;
 
-      await supabase.from('attendees').insert([attendeePayload]).catch(err => {
-        // Fallback por si la columna física phone no existe aún en esquema Supabase
+      try {
+        const { error: insErr } = await supabase.from('attendees').insert([attendeePayload]);
+        if (insErr) {
+          delete attendeePayload.phone;
+          await supabase.from('attendees').insert([attendeePayload]);
+        }
+      } catch (insertErr) {
         delete attendeePayload.phone;
-        return supabase.from('attendees').insert([attendeePayload]);
-      });
+        await supabase.from('attendees').insert([attendeePayload]);
+      }
     }
 
     res.status(201).json({ success: true, data: formatInvitationResponse(newInv) });
@@ -268,14 +273,16 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
       }
 
       if (Object.keys(attUpdates).length > 0) {
-        await supabase
-          .from('attendees')
-          .update(attUpdates)
-          .eq('invitation_id', id)
-          .catch(err => {
+        try {
+          const { error: updErr } = await supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
+          if (updErr) {
             delete attUpdates.phone;
-            return supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
-          });
+            await supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
+          }
+        } catch (uErr) {
+          delete attUpdates.phone;
+          await supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
+        }
       }
     }
 

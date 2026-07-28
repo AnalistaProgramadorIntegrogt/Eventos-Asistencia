@@ -7,7 +7,8 @@ import {
 import {
   SaveOutlined, EyeOutlined, LayoutOutlined, BgColorsOutlined,
   PlusOutlined, DeleteOutlined, CheckCircleOutlined,
-  FormOutlined, EditOutlined, MailOutlined
+  FormOutlined, EditOutlined, MailOutlined,
+  HolderOutlined, ArrowUpOutlined, ArrowDownOutlined
 } from '@ant-design/icons';
 import { api } from '../services/apiService';
 import logoImg from '../assets/Logo.png';
@@ -72,6 +73,8 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
   const [newField, setNewField] = useState({ label: '', type: 'text', required: false, allow_other: false, placeholder: '', rawOptions: '' });
   const [addingField, setAddingField] = useState(false);
   const [previewOtherValues, setPreviewOtherValues] = useState({});
+  // Drag state for fields and custom_fields
+  const [dragSrc, setDragSrc] = useState(null); // { list: 'fields'|'custom', idx: number }
 
   // Sync with selectedEventId prop
   useEffect(() => {
@@ -131,6 +134,54 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
     const updatedFields = [...formConfig.fields];
     updatedFields[index] = { ...updatedFields[index], [key]: value };
     setFormConfig({ ...formConfig, fields: updatedFields });
+    setSaved(false);
+  };
+
+  // Move field up/down in base fields (skip locked ones for reorder)
+  const moveBaseField = (idx, dir) => {
+    const fields = [...formConfig.fields.filter(f => f.id !== 'category')];
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= fields.length) return;
+    [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
+    // update order property
+    const reordered = fields.map((f, i) => ({ ...f, order: i + 1 }));
+    setFormConfig({ ...formConfig, fields: reordered });
+    setSaved(false);
+  };
+
+  // Move custom field up/down
+  const moveCustomField = (idx, dir) => {
+    const fields = [...(formConfig.custom_fields || [])];
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= fields.length) return;
+    [fields[idx], fields[newIdx]] = [fields[newIdx], fields[idx]];
+    const reordered = fields.map((f, i) => ({ ...f, order: i + 10 }));
+    setFormConfig({ ...formConfig, custom_fields: reordered });
+    setSaved(false);
+  };
+
+  // Drag handlers for base fields
+  const handleDragStart = (list, idx) => setDragSrc({ list, idx });
+  const handleDragOver = (e) => e.preventDefault();
+  const handleDrop = (list, dropIdx) => {
+    if (!dragSrc || dragSrc.list !== list || dragSrc.idx === dropIdx) {
+      setDragSrc(null);
+      return;
+    }
+    if (list === 'fields') {
+      const fields = [...formConfig.fields.filter(f => f.id !== 'category')];
+      const [moved] = fields.splice(dragSrc.idx, 1);
+      fields.splice(dropIdx, 0, moved);
+      const reordered = fields.map((f, i) => ({ ...f, order: i + 1 }));
+      setFormConfig({ ...formConfig, fields: reordered });
+    } else {
+      const fields = [...(formConfig.custom_fields || [])];
+      const [moved] = fields.splice(dragSrc.idx, 1);
+      fields.splice(dropIdx, 0, moved);
+      const reordered = fields.map((f, i) => ({ ...f, order: i + 10 }));
+      setFormConfig({ ...formConfig, custom_fields: reordered });
+    }
+    setDragSrc(null);
     setSaved(false);
   };
 
@@ -198,8 +249,12 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
   };
 
   const visibleFields = [
-    ...formConfig.fields.filter(f => f.visible && f.id !== 'category'),
-    ...(formConfig.custom_fields || []).filter(f => f.visible)
+    ...formConfig.fields
+      .filter(f => f.visible && f.id !== 'category')
+      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99)),
+    ...(formConfig.custom_fields || [])
+      .filter(f => f.visible)
+      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
   ];
 
   return (
@@ -308,6 +363,47 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
           <Col xs={24} xl={12}>
             <Space direction="vertical" style={{ width: '100%' }} size="large">
 
+              {/* Form Title & Description */}
+              <Card
+                title={
+                  <Space>
+                    <EditOutlined style={{ color: '#7c3aed' }} />
+                    <span style={{ fontWeight: '700' }}>Título y Descripción del Formulario</span>
+                  </Space>
+                }
+                bordered={false}
+                style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRadius: '10px' }}
+              >
+                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Título del Formulario:</Text>
+                    <Input
+                      value={formConfig.form_title || ''}
+                      onChange={e => {
+                        setFormConfig({ ...formConfig, form_title: e.target.value });
+                        setSaved(false);
+                      }}
+                      placeholder={`Ej: Preregistro — ${eventData?.name || 'Nombre del Evento'}`}
+                      style={{ fontWeight: '600', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Descripción / Subtítulo del Formulario:</Text>
+                    <Input.TextArea
+                      rows={3}
+                      value={formConfig.form_description || ''}
+                      onChange={e => {
+                        setFormConfig({ ...formConfig, form_description: e.target.value });
+                        setSaved(false);
+                      }}
+                      placeholder="Ej: Complete sus datos para recibir su pase corporativo de ingreso."
+                      style={{ marginTop: '4px', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}
+                    />
+                    <Text type="secondary" style={{ fontSize: '0.76rem', marginTop: '4px', display: 'block' }}>💡 Puedes usar Enter para saltos de línea.</Text>
+                  </div>
+                </Space>
+              </Card>
+
               {/* Base Fields */}
               <Card
                 title={
@@ -322,27 +418,40 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
               >
                 <Space direction="vertical" style={{ width: '100%' }} size="small">
                   {/* Header row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 90px', gap: '8px', padding: '0 4px', marginBottom: '4px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 80px 90px 60px', gap: '8px', padding: '0 4px', marginBottom: '4px' }}>
+                    <span />
                     <Text strong style={{ fontSize: '0.78rem', color: '#89888a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Etiqueta</Text>
                     <Text strong style={{ fontSize: '0.78rem', color: '#89888a', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Visible</Text>
                     <Text strong style={{ fontSize: '0.78rem', color: '#89888a', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Obligatorio</Text>
+                    <Text strong style={{ fontSize: '0.78rem', color: '#89888a', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>Orden</Text>
                   </div>
 
                   {formConfig.fields.filter(f => f.id !== 'category').map((f, idx) => (
                     <div
                       key={f.id}
+                      draggable
+                      onDragStart={() => handleDragStart('fields', idx)}
+                      onDragOver={handleDragOver}
+                      onDrop={() => handleDrop('fields', idx)}
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: '1fr 80px 90px',
+                        gridTemplateColumns: '28px 1fr 80px 90px 60px',
                         gap: '8px',
                         alignItems: 'center',
-                        background: f.locked ? '#fafafa' : '#ffffff',
+                        background: dragSrc?.list === 'fields' && dragSrc?.idx === idx ? '#f0f4ff' : (f.locked ? '#fafafa' : '#ffffff'),
                         border: `1px solid ${f.locked ? '#e8d5d5' : '#e5e7eb'}`,
                         padding: '10px 14px',
                         borderRadius: '8px',
-                        borderLeft: f.locked ? '3px solid #c3302d' : '3px solid #e5e7eb'
+                        borderLeft: f.locked ? '3px solid #c3302d' : '3px solid #e5e7eb',
+                        cursor: 'grab',
+                        transition: 'background 0.15s'
                       }}
                     >
+                      {/* Drag handle */}
+                      <Tooltip title="Arrastrar para reordenar">
+                        <HolderOutlined style={{ color: '#b0b7c3', fontSize: '1rem', cursor: 'grab' }} />
+                      </Tooltip>
+
                       <Space size={8}>
                         {f.locked && (
                           <Tooltip title="Campo obligatorio del sistema">
@@ -372,6 +481,23 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                           disabled={f.locked}
                           size="small"
                           style={{ backgroundColor: f.required ? '#c3302d' : undefined }}
+                        />
+                      </div>
+                      {/* Up/Down arrows */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                        <Button
+                          type="text" size="small"
+                          icon={<ArrowUpOutlined />}
+                          disabled={idx === 0}
+                          onClick={() => moveBaseField(idx, -1)}
+                          style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
+                        />
+                        <Button
+                          type="text" size="small"
+                          icon={<ArrowDownOutlined />}
+                          disabled={idx === formConfig.fields.filter(f => f.id !== 'category').length - 1}
+                          onClick={() => moveBaseField(idx, 1)}
+                          style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
                         />
                       </div>
                     </div>
@@ -486,18 +612,29 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                     {(formConfig.custom_fields || []).map((field, idx) => (
                       <div
                         key={field.id || idx}
+                        draggable
+                        onDragStart={() => handleDragStart('custom', idx)}
+                        onDragOver={handleDragOver}
+                        onDrop={() => handleDrop('custom', idx)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          background: '#ffffff',
+                          background: dragSrc?.list === 'custom' && dragSrc?.idx === idx ? '#f0fdf4' : '#ffffff',
                           border: '1px solid #e5e7eb',
                           padding: '10px 14px',
                           borderRadius: '8px',
-                          borderLeft: '3px solid #059669'
+                          borderLeft: '3px solid #059669',
+                          cursor: 'grab',
+                          transition: 'background 0.15s'
                         }}
                       >
-                        <Space direction="vertical" size={0}>
+                        {/* Drag handle */}
+                        <Tooltip title="Arrastrar para reordenar">
+                          <HolderOutlined style={{ color: '#b0b7c3', fontSize: '1rem', marginRight: '10px', cursor: 'grab', flexShrink: 0 }} />
+                        </Tooltip>
+
+                        <Space direction="vertical" size={0} style={{ flex: 1 }}>
                           <Text strong style={{ fontSize: '0.88rem' }}>{field.label}</Text>
                           <Space size={6} wrap>
                             <Tag color="green" style={{ fontSize: '0.7rem' }}>
@@ -515,6 +652,25 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                             </Text>
                           )}
                         </Space>
+
+                        {/* Up/Down arrows */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginRight: '6px' }}>
+                          <Button
+                            type="text" size="small"
+                            icon={<ArrowUpOutlined />}
+                            disabled={idx === 0}
+                            onClick={() => moveCustomField(idx, -1)}
+                            style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
+                          />
+                          <Button
+                            type="text" size="small"
+                            icon={<ArrowDownOutlined />}
+                            disabled={idx === (formConfig.custom_fields || []).length - 1}
+                            onClick={() => moveCustomField(idx, 1)}
+                            style={{ padding: '0 4px', height: '18px', fontSize: '0.7rem' }}
+                          />
+                        </div>
+
                         <Button
                           type="text"
                           danger
@@ -678,9 +834,9 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                   </div>
 
                   <div>
-                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Subtítulo / Mensaje Secundario (Admite {'{event_name}'}):</Text>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Subtítulo / Mensaje Secundario (Admite {'{event_name}'}):</Text>
                     <Input.TextArea
-                      rows={2}
+                      rows={3}
                       value={formConfig.success_screen?.subtitle || ''}
                       onChange={e => {
                         setFormConfig({
@@ -690,12 +846,14 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                         setSaved(false);
                       }}
                       placeholder="Ej: Tu registro para {event_name} se ha completado correctamente."
-                      style={{ marginTop: '4px' }}
+                      style={{ marginTop: '4px', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}
+                      autoSize={{ minRows: 3, maxRows: 8 }}
                     />
+                    <Text type="secondary" style={{ fontSize: '0.76rem', marginTop: '4px', display: 'block' }}>💡 Usa <strong>Enter</strong> para saltos de línea y <strong>Tab</strong> para indentación. Variable disponible: <code>{'{event_name}'}</code></Text>
                   </div>
 
                   <div>
-                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Encabezado de Alerta de Correo:</Text>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Encabezado de Alerta de Correo:</Text>
                     <Input
                       value={formConfig.success_screen?.alert_title || ''}
                       onChange={e => {
@@ -711,9 +869,9 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                   </div>
 
                   <div>
-                    <Text strong style={{ fontSize: '0.83rem', color: '#334155' }}>Descripción de Alerta de Correo:</Text>
+                    <Text strong style={{ fontSize: '0.83rem', color: '#334155', display: 'block', marginBottom: '4px' }}>Descripción de Alerta de Correo:</Text>
                     <Input.TextArea
-                      rows={3}
+                      rows={4}
                       value={formConfig.success_screen?.alert_description || ''}
                       onChange={e => {
                         setFormConfig({
@@ -722,9 +880,31 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                         });
                         setSaved(false);
                       }}
+                      onKeyDown={e => {
+                        // Allow Tab key to insert a tab character instead of changing focus
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          const start = e.target.selectionStart;
+                          const end = e.target.selectionEnd;
+                          const val = e.target.value;
+                          const newVal = val.substring(0, start) + '\t' + val.substring(end);
+                          setFormConfig({
+                            ...formConfig,
+                            success_screen: { ...formConfig.success_screen, alert_description: newVal }
+                          });
+                          setSaved(false);
+                          // Put cursor after the tab
+                          requestAnimationFrame(() => {
+                            e.target.selectionStart = start + 1;
+                            e.target.selectionEnd = start + 1;
+                          });
+                        }
+                      }}
                       placeholder="Ej: Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado..."
-                      style={{ marginTop: '4px' }}
+                      style={{ marginTop: '4px', fontFamily: 'inherit', whiteSpace: 'pre-wrap' }}
+                      autoSize={{ minRows: 4, maxRows: 10 }}
                     />
+                    <Text type="secondary" style={{ fontSize: '0.76rem', marginTop: '4px', display: 'block' }}>💡 Usa <strong>Enter</strong> para saltos de línea y <strong>Tab</strong> para indentación (se inserta como tabulación).</Text>
                   </div>
 
                   <Text strong style={{ display: 'block', marginTop: '8px', fontSize: '0.88rem', color: '#0f172a' }}>
@@ -960,9 +1140,9 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                           <Title level={4} style={{ margin: '0 0 6px', fontWeight: '800', color: formConfig.success_screen?.title_color || '#000000' }}>
                             {formConfig.success_screen?.title || '¡Preregistro Exitoso!'}
                           </Title>
-                          <Text style={{ display: 'block', fontSize: '0.88rem', color: formConfig.success_screen?.subtitle_color || '#59585a', marginBottom: '20px' }}>
+                          <div style={{ fontSize: '0.88rem', color: formConfig.success_screen?.subtitle_color || '#59585a', marginBottom: '20px', whiteSpace: 'pre-wrap', textAlign: 'center', lineHeight: '1.6' }}>
                             {(formConfig.success_screen?.subtitle || 'Tu registro para {event_name} se ha completado correctamente.').replace('{event_name}', eventData?.name || 'el evento')}
-                          </Text>
+                          </div>
 
                           <div
                             style={{
@@ -980,9 +1160,9 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                                 <Text strong style={{ display: 'block', color: formConfig.success_screen?.alert_text_color || '#1e293b', marginBottom: '4px' }}>
                                   {formConfig.success_screen?.alert_title || 'Revisa tu bandeja de correo electrónico'}
                                 </Text>
-                                <Text style={{ fontSize: '0.8rem', color: formConfig.success_screen?.alert_text_color || '#1e293b', lineHeight: '1.5' }}>
+                                <div style={{ fontSize: '0.8rem', color: formConfig.success_screen?.alert_text_color || '#1e293b', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
                                   {formConfig.success_screen?.alert_description || 'Te hemos enviado tu boleto oficial de ingreso con tu Código QR personalizado directamente a tu e-mail.'}
-                                </Text>
+                                </div>
                               </div>
                             </Space>
                           </div>
@@ -991,11 +1171,11 @@ export default function FormCustomizer({ selectedEventId, embedded = false }) {
                         <div>
                           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                             <Title level={4} style={{ color: formConfig.styling.text_color || '#000000', margin: '0 0 4px', fontWeight: '800' }}>
-                              {eventData?.name || 'Nombre del Evento'}<span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>.</span>
+                              {formConfig.form_title || eventData?.name || 'Nombre del Evento'}<span style={{ color: formConfig.styling.primary_color || '#c3302d' }}>.</span>
                             </Title>
-                            <Text style={{ color: '#59585a', fontSize: '0.82rem' }}>
-                              {eventData?.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
-                            </Text>
+                            <div style={{ color: '#59585a', fontSize: '0.82rem', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                              {formConfig.form_description || eventData?.description || 'Complete sus datos para recibir su pase corporativo de ingreso'}
+                            </div>
                           </div>
 
                           {visibleFields.map((field) => (

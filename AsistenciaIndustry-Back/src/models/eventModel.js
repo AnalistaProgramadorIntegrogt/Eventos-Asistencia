@@ -217,6 +217,46 @@ export const EventModel = {
    * Actualizar evento
    */
   async update(id, updates) {
+    try {
+      if (prisma && prisma.event) {
+        const prismaData = {};
+        if (updates.name !== undefined) prismaData.name = updates.name;
+        if (updates.description !== undefined) prismaData.description = updates.description;
+        if (updates.start_date !== undefined) prismaData.startDate = updates.start_date ? new Date(updates.start_date) : null;
+        if (updates.end_date !== undefined) prismaData.endDate = updates.end_date ? new Date(updates.end_date) : null;
+        if (updates.location !== undefined) prismaData.location = updates.location;
+        if (updates.banner_url !== undefined) prismaData.bannerUrl = updates.banner_url;
+        if (updates.logo_url !== undefined) prismaData.logoUrl = updates.logo_url;
+        if (updates.status !== undefined) prismaData.status = updates.status;
+        if (updates.invitation_code_required !== undefined) prismaData.invitationCodeRequired = updates.invitation_code_required;
+        if (updates.form_config !== undefined) prismaData.formConfig = updates.form_config;
+        if (updates.email_config !== undefined) prismaData.emailConfig = updates.email_config;
+        if (updates.confirmation_message !== undefined) prismaData.confirmationMessage = updates.confirmation_message;
+        if (updates.deleted_at !== undefined) prismaData.deletedAt = updates.deleted_at ? new Date(updates.deleted_at) : null;
+
+        const updatedEvent = await prisma.event.update({
+          where: { id },
+          data: prismaData
+        });
+
+        return {
+          ...updatedEvent,
+          start_date: updatedEvent.startDate,
+          end_date: updatedEvent.endDate,
+          banner_url: updatedEvent.bannerUrl,
+          logo_url: updatedEvent.logoUrl,
+          invitation_code_required: updatedEvent.invitationCodeRequired,
+          form_config: updatedEvent.formConfig,
+          email_config: updatedEvent.emailConfig,
+          confirmation_message: updatedEvent.confirmationMessage,
+          created_at: updatedEvent.createdAt,
+          deleted_at: updatedEvent.deletedAt
+        };
+      }
+    } catch (err) {
+      console.error("Prisma error in EventModel.update:", err);
+    }
+
     const { data, error } = await supabase
       .from('events')
       .update(updates)

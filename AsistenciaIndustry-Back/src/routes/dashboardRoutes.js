@@ -62,17 +62,27 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       asistentes: categoryCounts[cat]
     }));
 
-    // 5. Ranking de empresas con más asistentes
+    // 5. Ranking de empresas representadas (por confirmados y check-in)
     const companyCounts = {};
     (attendees || []).forEach(a => {
-      if (a.company && a.status === 'checked_in') {
-        const comp = a.company.trim();
-        companyCounts[comp] = (companyCounts[comp] || 0) + 1;
+      const comp = (a.company || a.additional_data?.empresa || a.additional_data?.company || '').trim();
+      if (comp && comp !== '' && comp.toLowerCase() !== 'n/a') {
+        if (!companyCounts[comp]) {
+          companyCounts[comp] = { total: 0, checkedIn: 0 };
+        }
+        companyCounts[comp].total += 1;
+        if (a.status === 'checked_in') {
+          companyCounts[comp].checkedIn += 1;
+        }
       }
     });
 
     const companyRanking = Object.keys(companyCounts)
-      .map(company => ({ company, count: companyCounts[company] }))
+      .map(company => ({
+        company,
+        count: companyCounts[company].total,
+        checked_in_count: companyCounts[company].checkedIn
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 

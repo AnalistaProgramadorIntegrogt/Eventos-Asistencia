@@ -272,7 +272,10 @@ export default function AdminDashboard({ selectedEventId }) {
                     }}
                   >
                     <Text strong>{idx + 1}. {c.company}</Text>
-                    <Tag color="black">{c.count} ejecutivos</Tag>
+                    <Space size="small">
+                      <Tag color="black">{c.count} {c.count === 1 ? 'ejecutivo' : 'ejecutivos'}</Tag>
+                      {c.checked_in_count > 0 && <Tag color="green">🟢 {c.checked_in_count} en sala</Tag>}
+                    </Space>
                   </div>
                 ))}
               </Space>

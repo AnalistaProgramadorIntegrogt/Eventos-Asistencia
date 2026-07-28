@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Form, Input, Button, Typography, Space, Tag, Alert, Popconfirm, message, Spin, Row, Col, Segmented, Tooltip } from 'antd';
-import { MailOutlined, SaveOutlined, UndoOutlined, CopyOutlined, CheckOutlined, EyeOutlined, EditOutlined, PlusOutlined, CodeOutlined, BgColorsOutlined, LayoutOutlined, BankOutlined, AuditOutlined, GlobalOutlined, FileTextOutlined, CompassOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { MailOutlined, SaveOutlined, UndoOutlined, CopyOutlined, CheckOutlined, EyeOutlined, EditOutlined, PlusOutlined, CodeOutlined, BgColorsOutlined, LayoutOutlined, BankOutlined, AuditOutlined, GlobalOutlined, FileTextOutlined, CompassOutlined, QrcodeOutlined, LinkOutlined } from '@ant-design/icons';
 import { api } from '../services/apiService';
 import logoImg from '../assets/Logo.png';
 import { logoBase64 } from '../assets/logoBase64.js';
+import { wazeBase64 } from '../assets/wazeBase64.js';
+import wazeImg from '../assets/waze.png';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -12,6 +14,7 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [editorMode, setEditorMode] = useState('visual'); // visual | code
+  const [wazeUrl, setWazeUrl] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('principal');
 
   // Íntegro Official App Brand Palette
@@ -79,7 +82,8 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
     { tag: '{event_name}', label: 'Nombre del Evento' },
     { tag: '{event_date}', label: 'Fecha y Hora' },
     { tag: '{event_location}', label: 'Ubicación' },
-    { tag: '{qr_image}', label: 'Boleto QR de Ingreso' }
+    { tag: '{qr_image}', label: 'Boleto QR de Ingreso' },
+    { tag: '{waze_link}', label: 'Botón Waze', isWaze: true }
   ];
 
   // Official Íntegro Base Ticket Template
@@ -285,9 +289,21 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
   const insertTagIntoActiveField = (tag) => {
     const currentVal = form.getFieldValue('template_confirmation') || '';
     form.setFieldsValue({
-      template_confirmation: currentVal + (currentVal.length > 0 ? ' ' : '') + tag
+      template_confirmation: currentVal + (currentVal.length > 0 ? '\n' : '') + tag
     });
     message.success(`Añadido ${tag}`);
+  };
+
+  // Build Waze HTML block for email (uses base64 image so it works in email clients)
+  const buildWazeLinkHtml = (url) => {
+    const href = url && url.trim() ? url.trim() : '#';
+    return `<div style="text-align:center; margin: 20px 0;">
+  <a href="${href}" target="_blank" rel="noopener noreferrer" style="display:inline-block; text-decoration:none;">
+    <img src="${wazeBase64}" alt="Abrir en Waze" width="48" height="48"
+         style="width:48px; height:48px; display:block; margin:0 auto 6px; border:0;"/>
+    <span style="font-size:0.78rem; color:#33ccff; font-weight:700; font-family:Arial,sans-serif; letter-spacing:0.04em;">Ver en Waze</span>
+  </a>
+</div>`;
   };
 
   const buildFullEmailDoc = (rawInnerContent) => {
@@ -301,8 +317,11 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
       </div>
     `;
 
+    const wazeLinkHtml = buildWazeLinkHtml(wazeUrl);
+
     let processed = (rawInnerContent || '')
-      .replace(/{qr_image}/g, qrImageHtml);
+      .replace(/{qr_image}/g, qrImageHtml)
+      .replace(/{waze_link}/g, wazeLinkHtml);
 
     return `<!DOCTYPE html>
 <html lang="es">
@@ -437,12 +456,23 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
       </div>
     `;
 
+    // Waze preview block (uses imported waze image for preview)
+    const sampleWazeHtml = `
+      <div style="text-align:center; margin:20px 0;">
+        <a href="${wazeUrl || '#'}" target="_blank" rel="noopener noreferrer" style="display:inline-block; text-decoration:none;">
+          <img src="${wazeImg}" alt="Abrir en Waze" width="48" height="48" style="width:48px; height:48px; display:block; margin:0 auto 6px; border:0;"/>
+          <span style="font-size:0.78rem; color:#33ccff; font-weight:700; font-family:Arial,sans-serif; letter-spacing:0.04em;">Ver en Waze</span>
+        </a>
+      </div>
+    `;
+
     let processedHtml = (rawTemplate || '')
       .replace(/{guest_name}/g, '[Nombre del Invitado]')
       .replace(/{event_name}/g, 'Inauguración Oficial de Proyecto Íntegro 2026')
       .replace(/{event_date}/g, 'Jueves 23 de Julio de 2026, 18:00 hrs')
       .replace(/{event_location}/g, 'Sede Central Íntegro, Salón Principal')
       .replace(/{qr_image}/g, sampleQRImage)
+      .replace(/{waze_link}/g, sampleWazeHtml)
       .replace(/{qr_code}/g, '');
 
     return (
@@ -746,14 +776,42 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
                     <Button
                       key={b.tag}
                       size="small"
-                      type="dashed"
-                      icon={<PlusOutlined />}
+                      type={b.isWaze ? 'default' : 'dashed'}
+                      icon={
+                        b.isWaze
+                          ? <img src={wazeImg} alt="Waze" style={{ width: '16px', height: '16px', verticalAlign: 'middle', marginRight: '2px' }} />
+                          : <PlusOutlined />
+                      }
                       onClick={() => insertTagIntoActiveField(b.tag)}
-                      style={{ fontSize: '0.8rem', fontWeight: '600' }}
+                      style={{
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        ...(b.isWaze ? { borderColor: '#33ccff', color: '#0099bb', background: '#f0faff' } : {})
+                      }}
                     >
                       {b.label}
                     </Button>
                   ))}
+                </div>
+
+                {/* Waze URL Input - shown always so user can configure before inserting */}
+                <div style={{ marginTop: '12px', padding: '10px 12px', background: '#f0faff', borderRadius: '6px', border: '1px solid #bae6fd' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <img src={wazeImg} alt="Waze" style={{ width: '20px', height: '20px' }} />
+                    <Text strong style={{ fontSize: '0.8rem', color: '#0369a1' }}>URL de destino para el botón Waze:</Text>
+                  </div>
+                  <Input
+                    prefix={<LinkOutlined style={{ color: '#0369a1' }} />}
+                    placeholder="https://waze.com/ul?ll=14.6349,-90.5069&navigate=yes"
+                    value={wazeUrl}
+                    onChange={(e) => setWazeUrl(e.target.value)}
+                    size="small"
+                    style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}
+                    allowClear
+                  />
+                  <Text type="secondary" style={{ fontSize: '0.73rem', marginTop: '4px', display: 'block' }}>
+                    Al dar clic en el ícono de Waze en el correo, el invitado será redirigido a esta URL.
+                  </Text>
                 </div>
               </div>
 
