@@ -85,9 +85,9 @@ export async function sendQRTicketEmail({ to, attendeeName, eventName, location,
   // 1. Usar un servicio público HTTPS para el QR (evita bloqueos de base64 data URI en Gmail/Outlook)
   const qrPublicUrl = (qrDataUrl && qrDataUrl.startsWith('http')) 
     ? qrDataUrl 
-    : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&ecc=H&data=${encodeURIComponent(qrCode || 'ENTRADA-OFICIAL')}`;
+    : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&ecc=H&margin=15&data=${encodeURIComponent(qrCode || 'ENTRADA-OFICIAL')}`;
 
-  const qrImageHtml = `<img src="${qrPublicUrl}" alt="Código QR de Entrada" width="220" height="220" style="width: 220px; height: 220px; border-radius: 8px; display: inline-block; margin: 10px auto;" />`;
+  const qrImageHtml = `<div style="text-align: center; margin: 16px auto; display: block;"><div style="background-color: #ffffff; padding: 16px; display: inline-block; border-radius: 12px; border: 4px solid #ffffff; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12); text-align: center;"><img src="${qrPublicUrl}" alt="Código QR de Entrada" width="220" height="220" style="width: 220px; height: 220px; border-radius: 8px; display: block; margin: 0 auto; border: 0; background-color: #ffffff;" /></div></div>`;
 
   // 2. Resolver URL del Logo (asegurar URL pública HTTPS válida, fallback a logo oficial Íntegro)
   const defaultLogoUrl = 'https://integro.gt/wp-content/uploads/2024/01/Logo-blanco.png';

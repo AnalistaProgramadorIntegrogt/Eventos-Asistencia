@@ -27,7 +27,7 @@ export async function generateQRDataURL(code) {
   try {
     const dataUrl = await QRCode.toDataURL(code, {
       errorCorrectionLevel: 'H',
-      margin: 2,
+      margin: 4,
       width: 300,
       color: {
         dark: '#000000',
