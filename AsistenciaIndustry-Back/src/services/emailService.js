@@ -85,7 +85,7 @@ export async function sendQRTicketEmail({ to, attendeeName, eventName, location,
   // 1. Usar un servicio público HTTPS para el QR (evita bloqueos de base64 data URI en Gmail/Outlook)
   const qrPublicUrl = (qrDataUrl && qrDataUrl.startsWith('http')) 
     ? qrDataUrl 
-    : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCode || 'ENTRADA-OFICIAL')}`;
+    : `https://api.qrserver.com/v1/create-qr-code/?size=250x250&ecc=H&data=${encodeURIComponent(qrCode || 'ENTRADA-OFICIAL')}`;
 
   const qrImageHtml = `<img src="${qrPublicUrl}" alt="Código QR de Entrada" width="220" height="220" style="width: 220px; height: 220px; border-radius: 8px; display: inline-block; margin: 10px auto;" />`;
 
