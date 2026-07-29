@@ -254,6 +254,16 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
     return htmlStr;
   };
 
+  // Migrate Waze blocks saved before the correct asset was configured. Those
+  // templates contain the old image inline instead of the editable marker.
+  const normalizeLegacyWazeBlock = (htmlStr) => {
+    if (!htmlStr || typeof htmlStr !== 'string') return htmlStr;
+    return htmlStr.replace(
+      /<div[^>]*>\s*<a[^>]*>[\s\S]*?Ver en Waze[\s\S]*?<\/a>\s*<\/div>/gi,
+      '{waze_link}'
+    );
+  };
+
   const fetchEmailConfig = async () => {
     if (!selectedEventId) return;
     setLoading(true);
@@ -263,9 +273,10 @@ export default function EmailTemplateCustomizer({ selectedEventId }) {
         const savedConfig = res.data.email_config || res.data;
         const rawTpl = savedConfig.template_confirmation_source || savedConfig.template_confirmation || savedConfig.ticket_body || savedConfig.ticket_template || savedConfig.template_invitation || principalTemplate.template_confirmation;
         const rawSub = savedConfig.subject_confirmation || savedConfig.ticket_subject || savedConfig.subject_invitation || principalTemplate.subject_confirmation;
+        const editableTemplate = savedConfig.template_confirmation_source || extractInnerHtml(rawTpl) || principalTemplate.template_confirmation;
         form.setFieldsValue({
           subject_confirmation: rawSub,
-          template_confirmation: savedConfig.template_confirmation_source || extractInnerHtml(rawTpl) || principalTemplate.template_confirmation
+          template_confirmation: normalizeLegacyWazeBlock(editableTemplate)
         });
         setHeaderBgColor(savedConfig.header_bg_color || '#0a0a0b');
         setHeaderTextColor(savedConfig.header_text_color || '#ffffff');
