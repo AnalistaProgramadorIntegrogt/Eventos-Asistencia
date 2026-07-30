@@ -220,6 +220,10 @@ export const api = {
         const invitationIdMap = new Map();
         const codeMap = new Map();
         const emailMap = new Map();
+        const nameCompanyMap = new Map();
+        const nameMap = new Map();
+
+        const normalizeStr = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, ' ');
 
         // 1. Cargar primero todas las invitaciones VIP
         invitations.forEach(inv => {
@@ -254,11 +258,16 @@ export const api = {
           invitationIdMap.set(inv.id, invItem);
           if (cleanCode) codeMap.set(cleanCode, invItem);
 
-          const normName = (invItem.full_name || '').toLowerCase().trim();
-          const normComp = (invItem.company || '').toLowerCase().trim();
-          if (cleanEmail && normName) {
-            if (normComp) emailMap.set(`${normName}|${cleanEmail}|${normComp}`, invItem);
-            if (!emailMap.has(`${normName}|${cleanEmail}`)) emailMap.set(`${normName}|${cleanEmail}`, invItem);
+          const normName = normalizeStr(invItem.full_name);
+          const normComp = normalizeStr(invItem.company);
+
+          if (cleanEmail) {
+            emailMap.set(cleanEmail, invItem);
+            if (normName) emailMap.set(`${normName}|${cleanEmail}`, invItem);
+          }
+          if (normName) {
+            if (normComp) nameCompanyMap.set(`${normName}|${normComp}`, invItem);
+            if (!nameMap.has(normName)) nameMap.set(normName, invItem);
           }
         });
 
@@ -267,21 +276,20 @@ export const api = {
           const subEmail = (sub.email || '').trim().toLowerCase();
           const subCode = (sub.invitation_code || sub.code || sub.qr_code || '').trim().toLowerCase();
           const subInvId = sub.invitation_id;
+          const subNormName = normalizeStr(sub.full_name || `${sub.first_name || ''} ${sub.last_name || ''}`);
+          const subNormComp = normalizeStr(sub.company || sub.additional_data?.company || sub.additional_data?.empresa || '');
 
           let existing = null;
           if (subInvId && invitationIdMap.has(subInvId)) {
             existing = invitationIdMap.get(subInvId);
           } else if (subCode && codeMap.has(subCode)) {
             existing = codeMap.get(subCode);
-          } else {
-            const subNormName = (sub.full_name || `${sub.first_name || ''} ${sub.last_name || ''}`).toLowerCase().trim();
-            const subNormComp = (sub.company || sub.additional_data?.company || sub.additional_data?.empresa || '').toLowerCase().trim();
-            if (subNormComp) {
-              existing = emailMap.get(`${subNormName}|${subEmail}|${subNormComp}`);
-            }
-            if (!existing && subEmail && subNormName) {
-              existing = emailMap.get(`${subNormName}|${subEmail}`);
-            }
+          } else if (subEmail && emailMap.has(subEmail)) {
+            existing = emailMap.get(subEmail);
+          } else if (subNormName && subNormComp && nameCompanyMap.has(`${subNormName}|${subNormComp}`)) {
+            existing = nameCompanyMap.get(`${subNormName}|${subNormComp}`);
+          } else if (subNormName && nameMap.has(subNormName)) {
+            existing = nameMap.get(subNormName);
           }
 
           const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
