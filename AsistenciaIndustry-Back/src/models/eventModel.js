@@ -151,13 +151,7 @@ export const EventModel = {
             invitationCodeRequired: invitation_code_required || false,
             formConfig: defaultConfig,
             emailConfig: email_config || null,
-            confirmationMessage: confirmation_message || '¡Confirmación Exitosa! Revisa tu correo para acceder a tu entrada.',
-            categories: {
-              create: [
-                { name: 'VIP' },
-                { name: 'General' }
-              ]
-            }
+            confirmationMessage: confirmation_message || '¡Confirmación Exitosa! Revisa tu correo para acceder a tu entrada.'
           }
         });
         
@@ -203,12 +197,6 @@ export const EventModel = {
       .single();
 
     if (error) throw error;
-
-    // Crear categorías por defecto
-    await supabase.from('event_categories').insert([
-      { event_id: newEvent.id, name: 'VIP' },
-      { event_id: newEvent.id, name: 'General' }
-    ]);
 
     return newEvent;
   },

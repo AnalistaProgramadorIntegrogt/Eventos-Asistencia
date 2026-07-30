@@ -266,11 +266,16 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
 
     if (categoryFilter) {
       const catId = item.category_id;
-      const catName = item.category_name || item.event_categories?.name;
+      const catName = item.internal_category || item.category_name || item.event_categories?.name;
+      const selectedCatObj = categories.find(c => c.id === categoryFilter);
+      const selectedName = selectedCatObj ? selectedCatObj.name : categoryFilter;
+
       if (categoryFilter === 'none') {
-        if (catId || catName) return false;
+        if (catId || (catName && categories.some(c => c.name.toLowerCase() === catName.toLowerCase()))) return false;
       } else {
-        if (catId !== categoryFilter && catName !== categoryFilter) return false;
+        const matchesId = catId && catId === categoryFilter;
+        const matchesName = catName && (catName === categoryFilter || catName === selectedName);
+        if (!matchesId && !matchesName) return false;
       }
     }
 
@@ -337,13 +342,17 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       title: 'Categoría Interna',
       key: 'internal_category',
       render: (_, record) => {
-        const catName = record.internal_category || record.category_name || (record.event_categories ? record.event_categories.name : null);
-        if (!catName || catName === 'General') {
-          return <Tag color="default" style={{ borderRadius: '4px' }}>General / Sin Asignar</Tag>;
+        const rawCatName = record.internal_category || (record.event_categories ? record.event_categories.name : null);
+        if (!rawCatName) {
+          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         }
+        // Verificar si coincide con una categoría interna real configurada
+        const matchObj = categories.find(c => c.id === record.category_id || c.name.toLowerCase() === rawCatName.toLowerCase());
+        const displayCat = matchObj ? matchObj.name : rawCatName;
+
         return (
           <Tag color="purple" icon={<TagOutlined />} style={{ fontWeight: 'bold', borderRadius: '4px' }}>
-            {catName}
+            {displayCat}
           </Tag>
         );
       }

@@ -106,7 +106,11 @@ export default function ManualCheckIn({ selectedEventId, currentUser }) {
       title: 'Categoría',
       dataIndex: 'event_categories',
       key: 'category',
-      render: (cat) => <Tag color="black">{cat?.name || 'VIP'}</Tag>
+      render: (cat, record) => {
+        const name = cat?.name || record.category_name;
+        if (!name) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        return <Tag color="purple" style={{ fontWeight: 'bold' }}>{name}</Tag>;
+      }
     },
     {
       title: 'Código QR',

@@ -240,8 +240,8 @@ export const api = {
             email: inv.guest_email || inv.email || '',
             company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
             job_title: inv.job_title || attendeeJob || '',
-            category_name: internalCat || 'General',
-            internal_category: internalCat,
+            category_name: internalCat || null,
+            internal_category: internalCat || null,
             form_category: formCat,
             is_imported: true,
             status: inv.status || (inv.is_active === false ? 'declined' : 'pending')
@@ -301,8 +301,8 @@ export const api = {
                 email: sub.email || '',
                 company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
                 job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
-                category_name: subInternalCat || 'General',
-                internal_category: subInternalCat,
+                category_name: subInternalCat || null,
+                internal_category: subInternalCat || null,
                 form_category: subFormCat,
                 is_imported: false,
                 is_public_registration: true

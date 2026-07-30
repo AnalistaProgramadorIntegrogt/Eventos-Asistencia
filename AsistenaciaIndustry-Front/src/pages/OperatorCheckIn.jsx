@@ -106,7 +106,7 @@ export default function OperatorCheckIn({ selectedEventId, currentUser }) {
                       Empresa: {scanResult.attendee.company || 'Ejecutivo Independiente'}
                     </Text>
                     <Text type="secondary" style={{ fontSize: '0.95rem' }}>
-                      Categoría: {scanResult.attendee.category_name || 'VIP'}
+                      Categoría: {scanResult.attendee.category_name || scanResult.attendee.internal_category || '—'}
                     </Text>
                   </div>
                 )
