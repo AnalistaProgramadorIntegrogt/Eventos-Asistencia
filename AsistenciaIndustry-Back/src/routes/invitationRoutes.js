@@ -146,12 +146,19 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
     const { data: existingInvitations } = await supabase
       .from('invitations')
-      .select('id, guest_name, guest_email, code, category_id, attendees(company, additional_data)')
+      .select('id, guest_name, guest_email, code, category_id, attendees(id, company, additional_data)')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+
+    const { data: existingAttendees } = await supabase
+      .from('attendees')
+      .select('id, first_name, last_name, email, company, category_id, invitation_id, additional_data, qr_code')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
     const normalizeStr = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const existingMap = new Map();
+    const existingEmailMap = new Map();
     const existingNameMap = new Map();
 
     (existingInvitations || []).forEach(inv => {
@@ -169,8 +176,12 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       if (normComp) {
         existingMap.set(`${normName}|${normEmail}|${normComp}`, inv);
       }
-      existingMap.set(`${normName}|${normEmail}`, inv);
-
+      if (normEmail && normName) {
+        existingMap.set(`${normName}|${normEmail}`, inv);
+      }
+      if (normEmail && !existingEmailMap.has(normEmail)) {
+        existingEmailMap.set(normEmail, inv);
+      }
       if (normCode) {
         existingMap.set(normCode, inv);
       }
@@ -180,6 +191,35 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
           existingNameMap.set(normName, []);
         }
         existingNameMap.get(normName).push(inv);
+      }
+    });
+
+    (existingAttendees || []).forEach(att => {
+      const normName = normalizeStr(`${att.first_name || ''} ${att.last_name || ''}`);
+      const normEmail = normalizeStr(att.email);
+      const normComp = normalizeStr(att.company);
+      const normCode = att.qr_code ? att.qr_code.toLowerCase().trim() : '';
+
+      const syntheticInv = {
+        id: att.invitation_id || att.id,
+        attendee_id: att.id,
+        guest_name: `${att.first_name || ''} ${att.last_name || ''}`.trim(),
+        guest_email: att.email,
+        category_id: att.category_id,
+        attendees: [att]
+      };
+
+      if (normComp && !existingMap.has(`${normName}|${normEmail}|${normComp}`)) {
+        existingMap.set(`${normName}|${normEmail}|${normComp}`, syntheticInv);
+      }
+      if (normEmail && normName && !existingMap.has(`${normName}|${normEmail}`)) {
+        existingMap.set(`${normName}|${normEmail}`, syntheticInv);
+      }
+      if (normEmail && !existingEmailMap.has(normEmail)) {
+        existingEmailMap.set(normEmail, syntheticInv);
+      }
+      if (normCode && !existingMap.has(normCode)) {
+        existingMap.set(normCode, syntheticInv);
       }
     });
 
@@ -217,6 +257,10 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
         existingMatch = existingMap.get(`${normName}|${normEmail}`) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
       }
 
+      if (!existingMatch && normEmail) {
+        existingMatch = existingEmailMap.get(normEmail);
+      }
+
       if (!existingMatch && !email && normName) {
         const nameMatches = existingNameMap.get(normName);
         if (nameMatches && nameMatches.length === 1) {
@@ -225,22 +269,34 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       }
 
       if (existingMatch) {
-        await supabase
-          .from('invitations')
-          .update({ category_id: catId || existingMatch.category_id })
-          .eq('id', existingMatch.id);
+        if (existingMatch.id && !existingMatch.attendee_id) {
+          await supabase
+            .from('invitations')
+            .update({ category_id: catId || existingMatch.category_id })
+            .eq('id', existingMatch.id);
+        }
+
+        const existingAttData = Array.isArray(existingMatch.attendees) && existingMatch.attendees.length > 0
+          ? (existingMatch.attendees[0]?.additional_data || {})
+          : (existingMatch.additional_data || {});
 
         const attUpdates = { category_id: catId || existingMatch.category_id };
         if (g.company) attUpdates.company = g.company;
         if (g.job_title) attUpdates.job_title = g.job_title;
         if (g.phone) {
-          attUpdates.additional_data = { phone: g.phone, telefono: g.phone };
+          attUpdates.additional_data = {
+            ...existingAttData,
+            phone: g.phone,
+            telefono: g.phone
+          };
         }
 
-        await supabase
-          .from('attendees')
-          .update(attUpdates)
-          .eq('invitation_id', existingMatch.id);
+        if (existingMatch.id) {
+          await supabase
+            .from('attendees')
+            .update(attUpdates)
+            .or(`invitation_id.eq.${existingMatch.id},id.eq.${existingMatch.attendee_id || existingMatch.id}`);
+        }
 
         updatedCount++;
       } else {

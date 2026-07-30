@@ -145,13 +145,17 @@ export function parseGuestsFromExcelBuffer(buffer) {
     const jobTitle = normalizedRow['cargo'] || normalizedRow['puesto'] || normalizedRow['job_title'] || normalizedRow['job title'] || normalizedRow['title'] || '';
 
     // 5. Detectar Teléfono (opcional)
-    let phone = normalizedRow['telefono'] || normalizedRow['telefono'] || normalizedRow['tel'] || normalizedRow['phone'] || normalizedRow['celular'] || normalizedRow['movil'] || normalizedRow['mobile'] || normalizedRow['telefono de contacto'] || normalizedRow['telefono_contacto'] || '';
+    let phone = normalizedRow['telefono'] || normalizedRow['tel'] || normalizedRow['phone'] || normalizedRow['celular'] || normalizedRow['movil'] || normalizedRow['mobile'] || normalizedRow['telefono de contacto'] || normalizedRow['telefono_contacto'] || normalizedRow['numero de telefono'] || normalizedRow['numero'] || normalizedRow['contact_number'] || normalizedRow['whatsapp'] || '';
 
     if (!phone) {
       for (const [k, v] of Object.entries(normalizedRow)) {
-        if ((k.includes('telef') || k.includes('phone') || k.includes('celular') || k.includes('movil')) && v) {
-          phone = String(v).trim();
-          break;
+        if (v) {
+          const valStr = String(v).trim();
+          const digitsCount = valStr.replace(/[^\d]/g, '').length;
+          if ((k.includes('telef') || k.includes('phone') || k.includes('celular') || k.includes('movil') || k.includes('tel') || k.includes('whatsapp') || k.includes('numero') || k.includes('contacto')) && digitsCount >= 7) {
+            phone = valStr;
+            break;
+          }
         }
       }
     }
