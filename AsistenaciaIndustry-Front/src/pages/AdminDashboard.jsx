@@ -346,48 +346,6 @@ export default function AdminDashboard({ selectedEventId }) {
         </Col>
       </Row>
 
-      {/* Empresas Representadas */}
-      <Row gutter={[24, 24]} style={{ marginBottom: '28px' }}>
-        <Col xs={24}>
-          <Card
-            title={
-              <Space>
-                <ShopOutlined style={{ color: '#000000' }} />
-                <span>Empresas Representadas</span>
-              </Space>
-            }
-            bordered={false}
-            style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)' }}
-          >
-            {topCompanies.length === 0 ? (
-              <Text type="secondary">No hay datos corporativos aún.</Text>
-            ) : (
-              <Space direction="vertical" style={{ width: '100%' }} size="small">
-                {topCompanies.map((c, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 14px',
-                      backgroundColor: '#f8f9fa',
-                      borderRadius: '6px',
-                      borderLeft: idx === 0 ? '3px solid #c3302d' : '3px solid #000000'
-                    }}
-                  >
-                    <Text strong>{idx + 1}. {c.company}</Text>
-                    <Space size="small">
-                      <Tag color="black">{c.count} {c.count === 1 ? 'ejecutivo' : 'ejecutivos'}</Tag>
-                      {c.checked_in_count > 0 && <Tag color="green">🟢 {c.checked_in_count} en sala</Tag>}
-                    </Space>
-                  </div>
-                ))}
-              </Space>
-            )}
-          </Card>
-        </Col>
-      </Row>
 
       {/* Audit Log Table */}
       <Card
