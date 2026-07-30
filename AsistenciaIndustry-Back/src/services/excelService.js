@@ -67,8 +67,8 @@ export function parseGuestsFromExcelBuffer(buffer) {
       }
     }
 
-    // 3. Detectar Categoría
-    const category = normalizedRow['categoria'] || normalizedRow['category'] || normalizedRow['tipo'] || normalizedRow['category_name'] || 'General';
+    // 3. Detectar Categoría Interna
+    const category = normalizedRow['categoria'] || normalizedRow['categoria interna'] || normalizedRow['category'] || normalizedRow['tipo'] || normalizedRow['category_name'] || '';
 
     // 4. Detectar Empresa / Cargo (opcionales)
     const company = normalizedRow['empresa'] || normalizedRow['company'] || normalizedRow['organizacion'] || '';
@@ -83,7 +83,7 @@ export function parseGuestsFromExcelBuffer(buffer) {
       guest_email: email,
       company,
       job_title: jobTitle,
-      category: category || 'General',
+      category: category || '',
       code: generateUniqueInvitationCode('INV')
     };
   }).filter(g => Boolean(g.guest_name || g.guest_email));
