@@ -134,6 +134,8 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
     const parsedGuests = parseGuestsFromExcelBuffer(req.file.buffer);
 
     // Obtener las categorías existentes del evento para asociarlas
+    const guests = parseGuestsFromExcelBuffer(req.file.buffer);
+
     const { data: categories } = await supabase
       .from('event_categories')
       .select('*')
@@ -142,10 +144,9 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
     const categoryMap = new Map((categories || []).map(c => [c.name.toLowerCase(), c.id]));
 
-    // Consultar invitaciones existentes en el evento para desduplicación inteligente por Nombre + Correo (+ Empresa)
     const { data: existingInvitations } = await supabase
       .from('invitations')
-      .select('id, guest_name, guest_email, code, category_id, phone, attendees(company, phone)')
+      .select('id, guest_name, guest_email, code, category_id, attendees(company, additional_data)')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
@@ -156,34 +157,38 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
     (existingInvitations || []).forEach(inv => {
       const normName = normalizeStr(inv.guest_name);
       const normEmail = normalizeStr(inv.guest_email);
-      const attComp = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.company : (inv.attendees?.company || '');
-      const normComp = normalizeStr(attComp);
+      const normCode = inv.code ? inv.code.toLowerCase().trim() : '';
 
-      if (normName || normEmail) {
-        if (normComp) {
-          existingMap.set(`${normName}|${normEmail}|${normComp}`, inv);
-        }
-        existingMap.set(`${normName}|${normEmail}`, inv);
+      let normComp = '';
+      if (Array.isArray(inv.attendees) && inv.attendees.length > 0) {
+        normComp = normalizeStr(inv.attendees[0]?.company);
+      } else if (inv.attendees?.company) {
+        normComp = normalizeStr(inv.attendees.company);
       }
+
+      if (normComp) {
+        existingMap.set(`${normName}|${normEmail}|${normComp}`, inv);
+      }
+      existingMap.set(`${normName}|${normEmail}`, inv);
+
+      if (normCode) {
+        existingMap.set(normCode, inv);
+      }
+
       if (normName) {
         if (!existingNameMap.has(normName)) {
-          existingNameMap.set(normName, [inv]);
-        } else {
-          existingNameMap.get(normName).push(inv);
+          existingNameMap.set(normName, []);
         }
-      }
-      if (inv.code) {
-        existingMap.set(inv.code.toLowerCase().trim(), inv);
+        existingNameMap.get(normName).push(inv);
       }
     });
 
-    const itemsToInsert = [];
     let updatedCount = 0;
+    const itemsToInsert = [];
 
-    for (const g of parsedGuests) {
+    for (const g of guests) {
       let catId = categoryMap.get((g.category || '').toLowerCase());
 
-      // Si la categoría no existe, se crea dinámicamente
       if (!catId && g.category) {
         const { data: newCat } = await supabase
           .from('event_categories')
@@ -212,7 +217,6 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
         existingMatch = existingMap.get(`${normName}|${normEmail}`) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
       }
 
-      // FALLBACK CUANDO LA FILA DEL EXCEL NO CONTIENE CORREO:
       if (!existingMatch && !email && normName) {
         const nameMatches = existingNameMap.get(normName);
         if (nameMatches && nameMatches.length === 1) {
@@ -221,7 +225,6 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       }
 
       if (existingMatch) {
-        // ACTUALIZAR TITULAR EXISTENTE SIN CREAR DUPLICADO
         await supabase
           .from('invitations')
           .update({ category_id: catId || existingMatch.category_id })
@@ -230,7 +233,9 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
         const attUpdates = { category_id: catId || existingMatch.category_id };
         if (g.company) attUpdates.company = g.company;
         if (g.job_title) attUpdates.job_title = g.job_title;
-        if (g.phone) attUpdates.phone = g.phone;
+        if (g.phone) {
+          attUpdates.additional_data = { phone: g.phone, telefono: g.phone };
+        }
 
         await supabase
           .from('attendees')
@@ -239,7 +244,6 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
         updatedCount++;
       } else {
-        // NUEVO INVITADO
         const nameParts = rawName.trim().split(' ');
         const firstName = nameParts[0] || 'Invitado';
         const lastName = nameParts.slice(1).join(' ') || '';
@@ -261,17 +265,15 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
             company: g.company || '',
             job_title: g.job_title || '',
             category_id: catId || null,
-            phone: g.phone || '',
             qr_code: generateUniqueAttendeeCode(),
             status: 'pending',
             is_public_registration: false,
-            additional_data: { phone: g.phone || '' }
+            additional_data: { phone: g.phone || '', telefono: g.phone || '' }
           }
         });
       }
     }
 
-    // Insertar nuevas invitaciones en bloques (chunks) y mapear sus IDs por código único
     const allInserted = [];
     const codeToInvIdMap = new Map();
     const chunkSize = 40;

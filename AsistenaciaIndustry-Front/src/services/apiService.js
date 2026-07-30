@@ -320,7 +320,7 @@ export const api = {
             }
           } else {
             if (!combinedMap.has(sub.id)) {
-              const isImportedGuest = sub.is_public_registration === false || sub.invitation_id !== null || sub.is_imported === true || !!subInternalCat;
+              const isImportedGuest = sub.is_public_registration === false || (sub.invitation_id !== null && sub.invitation_id !== undefined && sub.invitation_id !== '') || sub.is_imported === true;
 
               const newItem = {
                 ...sub,

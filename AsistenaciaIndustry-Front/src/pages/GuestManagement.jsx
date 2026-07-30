@@ -348,17 +348,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     window.open(link, '_blank');
   };
 
-  // Helper check if record is VIP / imported
+  // Helper check if record is VIP / imported vs Public Web Registration
   const checkIsVip = (record) => {
-    return (
-      record.is_imported ||
-      record.is_public_registration === false ||
-      !!record.invitation_id ||
-      !!record.internal_category ||
-      (record.category_name && record.category_name !== 'General' && record.category_name !== 'General / Sin categoría') ||
-      record.category_id === 'vip' ||
-      record.event_categories?.name === 'VIP'
-    );
+    if (record.is_public_registration === true) return false;
+    if (record.is_imported === true || record.is_public_registration === false || !!record.invitation_id) return true;
+    return false;
   };
 
   // Filtering Logic
