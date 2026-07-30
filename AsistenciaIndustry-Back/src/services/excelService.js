@@ -14,6 +14,67 @@ function normalizeKey(str) {
 }
 
 /**
+ * Normaliza y da formato limpio a números de teléfono nacionales e internacionales con o sin extensión.
+ */
+export function formatPhoneNumber(input) {
+  if (!input) return '';
+  let str = String(input).trim();
+  if (!str) return '';
+
+  // Manejar notación científica de Excel (ej: 5.025555444e+11)
+  if (/^[+-]?\d+(\.\d+)?[eE][+-]?\d+$/.test(str)) {
+    try {
+      str = BigInt(Math.round(Number(str))).toString();
+    } catch (e) {
+      str = Number(str).toFixed(0);
+    }
+  }
+
+  // Eliminar decimales si Excel lo convirtió a float (ej: 50255554444.0 -> 50255554444)
+  str = str.replace(/\.0+$/, '');
+
+  // Extraer extensión si existe (ej: ext 101, Ext. 101, x101, extensión 101)
+  let extension = '';
+  const extMatch = str.match(/(?:ext|extensión|ext|x|extension|\#)\.?\s*(\d+)/i);
+  if (extMatch) {
+    extension = ` Ext. ${extMatch[1]}`;
+    str = str.substring(0, extMatch.index).trim();
+  }
+
+  const isInternationalWithPlus = str.startsWith('+');
+  let digits = str.replace(/[^\d]/g, '');
+
+  if (!digits) return input;
+
+  // Caso 1: 8 dígitos exactos (Número nacional Guatemala, ej: 55554444)
+  if (digits.length === 8) {
+    return `+502 ${digits.substring(0, 4)}-${digits.substring(4)}${extension}`;
+  }
+
+  // Caso 2: 11 dígitos iniciando con 502 (ej: 50255554444)
+  if (digits.length === 11 && digits.startsWith('502')) {
+    const num = digits.substring(3);
+    return `+502 ${num.substring(0, 4)}-${num.substring(4)}${extension}`;
+  }
+
+  // Caso 3: Número internacional (+1 305 555 0199 o 001...)
+  if (isInternationalWithPlus || digits.length > 8) {
+    if (digits.startsWith('00')) {
+      digits = digits.substring(2);
+    }
+
+    if (isInternationalWithPlus || !digits.startsWith('502')) {
+      if (digits.length === 11 && digits.startsWith('1')) {
+        return `+1 (${digits.substring(1, 4)}) ${digits.substring(4, 7)}-${digits.substring(7)}${extension}`;
+      }
+      return `+${digits.substring(0, digits.length - 8)} ${digits.substring(digits.length - 8, digits.length - 4)}-${digits.substring(digits.length - 4)}${extension}`;
+    }
+  }
+
+  return `${str}${extension}`;
+}
+
+/**
  * Lee un buffer de archivo Excel (.xlsx, .xls) o CSV y extrae los datos de los invitados.
  * Detecta automáticamente encabezados en español e inglés.
  */
@@ -83,6 +144,18 @@ export function parseGuestsFromExcelBuffer(buffer) {
     const company = normalizedRow['empresa'] || normalizedRow['company'] || normalizedRow['organizacion'] || '';
     const jobTitle = normalizedRow['cargo'] || normalizedRow['puesto'] || normalizedRow['job_title'] || normalizedRow['job title'] || normalizedRow['title'] || '';
 
+    // 5. Detectar Teléfono (opcional)
+    let phone = normalizedRow['telefono'] || normalizedRow['telefono'] || normalizedRow['tel'] || normalizedRow['phone'] || normalizedRow['celular'] || normalizedRow['movil'] || normalizedRow['mobile'] || normalizedRow['telefono de contacto'] || normalizedRow['telefono_contacto'] || '';
+
+    if (!phone) {
+      for (const [k, v] of Object.entries(normalizedRow)) {
+        if ((k.includes('telef') || k.includes('phone') || k.includes('celular') || k.includes('movil')) && v) {
+          phone = String(v).trim();
+          break;
+        }
+      }
+    }
+
     const finalGuestName = fullName || firstName || email || 'Invitado VIP';
 
     return {
@@ -92,6 +165,7 @@ export function parseGuestsFromExcelBuffer(buffer) {
       guest_email: email,
       company,
       job_title: jobTitle,
+      phone: formatPhoneNumber(phone),
       category: category || '',
       code: generateUniqueInvitationCode('INV')
     };

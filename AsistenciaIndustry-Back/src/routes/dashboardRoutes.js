@@ -50,7 +50,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       checkins: hourlyCounts[hour]
     }));
 
-    // 4. Asistentes por Categoría Interna (Total de Invitados vs Asistieron)
+    // 4. Confirmaciones y Preregistros por Categoría Interna
     const { data: allEventCategories } = await supabase
       .from('event_categories')
       .select('name')
@@ -66,34 +66,62 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
     const categoryStats = {};
     (allEventCategories || []).forEach(c => {
       if (c.name && !isGenericCat(c.name)) {
-        categoryStats[c.name] = { total: 0, asistieron: 0, pendientes: 0 };
+        categoryStats[c.name] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
       }
     });
+
+    let noCatStats = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
 
     (attendees || []).forEach(a => {
       const catName = a.event_categories?.name;
+      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in';
+
       if (catName && !isGenericCat(catName)) {
         if (!categoryStats[catName]) {
-          categoryStats[catName] = { total: 0, asistieron: 0, pendientes: 0 };
+          categoryStats[catName] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
         }
         categoryStats[catName].total += 1;
-        if (a.status === 'checked_in') {
-          categoryStats[catName].asistieron += 1;
+        if (isConfirmed) {
+          categoryStats[catName].confirmados += 1;
         } else {
           categoryStats[catName].pendientes += 1;
+        }
+        if (a.status === 'checked_in') {
+          categoryStats[catName].asistieron += 1;
+        }
+      } else {
+        noCatStats.total += 1;
+        if (isConfirmed) {
+          noCatStats.confirmados += 1;
+        } else {
+          noCatStats.pendientes += 1;
+        }
+        if (a.status === 'checked_in') {
+          noCatStats.asistieron += 1;
         }
       }
     });
 
-    const totalAllGuests = (attendees || []).length;
     const categoryChartData = Object.keys(categoryStats).map(cat => ({
       name: cat,
+      confirmados: categoryStats[cat].confirmados,
       asistentes: categoryStats[cat].asistieron,
       total: categoryStats[cat].total,
       pendientes: categoryStats[cat].pendientes,
-      category_pct: totalAllGuests > 0 ? Math.round((categoryStats[cat].total / totalAllGuests) * 100) : 0,
-      conversion_pct: categoryStats[cat].total > 0 ? Math.round((categoryStats[cat].asistieron / categoryStats[cat].total) * 100) : 0
+      confirmation_pct: categoryStats[cat].total > 0 ? Math.round((categoryStats[cat].confirmados / categoryStats[cat].total) * 100) : 0
     }));
+
+    if (noCatStats.total > 0) {
+      categoryChartData.push({
+        name: 'Sin Categoría',
+        is_no_category: true,
+        confirmados: noCatStats.confirmados,
+        asistentes: noCatStats.asistieron,
+        total: noCatStats.total,
+        pendientes: noCatStats.pendientes,
+        confirmation_pct: noCatStats.total > 0 ? Math.round((noCatStats.confirmados / noCatStats.total) * 100) : 0
+      });
+    }
 
     // 5. Ranking de empresas representadas (por confirmados y check-in)
     const companyCounts = {};

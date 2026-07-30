@@ -218,7 +218,7 @@ export default function AdminDashboard({ selectedEventId }) {
             title={
               <Space>
                 <BarChartOutlined style={{ color: '#7c3aed' }} />
-                <span>Invitados por Categoría Interna</span>
+                <span>Confirmaciones y Preregistros por Categoría Interna</span>
               </Space>
             }
             bordered={false}
@@ -228,24 +228,27 @@ export default function AdminDashboard({ selectedEventId }) {
               <Text type="secondary">Sin registros por categoría interna aún.</Text>
             ) : (
               categoryData.map((cat, idx) => {
+                const isNoCat = cat.is_no_category || cat.name === 'Sin Categoría';
                 const totalInCat = cat.total || 0;
-                const grandTotal = metrics.total_submissions || metrics.total_guests || 0;
-                const pct = cat.category_pct !== undefined ? cat.category_pct : (grandTotal > 0 ? Math.round((totalInCat / grandTotal) * 100) : 0);
+                const confirmedInCat = cat.confirmados !== undefined ? cat.confirmados : (cat.asistentes || 0);
+                const pct = cat.confirmation_pct !== undefined ? cat.confirmation_pct : (totalInCat > 0 ? Math.round((confirmedInCat / totalInCat) * 100) : 0);
 
                 return (
                   <div key={idx} style={{ marginBottom: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
-                      <Text strong>{cat.name}</Text>
+                      <Text strong style={{ color: isNoCat ? '#64748b' : '#1e293b' }}>
+                        {isNoCat ? '🏷️ Sin Categoría' : cat.name}
+                      </Text>
                       <Space>
                         <Text type="secondary" style={{ fontSize: '0.82rem' }}>
-                          {totalInCat} invitado(s) {grandTotal > 0 ? `de ${grandTotal} total` : ''}
+                          {confirmedInCat} confirmado(s) {totalInCat > 0 ? `de ${totalInCat} invitados` : ''}
                         </Text>
-                        <Tag color="purple" style={{ fontWeight: 'bold', margin: 0 }}>
+                        <Tag color={isNoCat ? 'default' : (pct >= 50 ? 'green' : 'volcano')} style={{ fontWeight: 'bold', margin: 0 }}>
                           {pct}%
                         </Tag>
                       </Space>
                     </div>
-                    <Progress percent={pct} strokeColor="#7c3aed" showInfo={false} />
+                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : (pct >= 50 ? '#10b981' : '#f59e0b')} showInfo={false} />
                   </div>
                 );
               })

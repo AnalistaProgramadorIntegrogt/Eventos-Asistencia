@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge, QRCode, Popover, Alert } from 'antd';
-import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined, TagOutlined } from '@ant-design/icons';
+import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined, TagOutlined, MailOutlined, SendOutlined, PhoneOutlined } from '@ant-design/icons';
 import { api, getStoredUser } from '../services/apiService';
 
 const { Title, Text } = Typography;
@@ -29,6 +29,46 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const canCopyLink = hasPerm('COPY_GUEST_LINK');
   const canRegenerateQR = hasPerm('REGENERATE_GUEST_QR');
   const canAssignBulkCategory = hasPerm('ASSIGN_BULK_CATEGORY') || hasPerm('ASSIGN_GUEST_CATEGORY') || hasPerm('EDIT_GUEST_INFO') || hasPerm('EDIT_GUEST');
+
+  const formatPhone = (input) => {
+    if (!input) return '';
+    let str = String(input).trim();
+    if (!str) return '';
+
+    str = str.replace(/\.0+$/, '');
+
+    let extension = '';
+    const extMatch = str.match(/(?:ext|extensión|ext|x|extension|\#)\.?\s*(\d+)/i);
+    if (extMatch) {
+      extension = ` Ext. ${extMatch[1]}`;
+      str = str.substring(0, extMatch.index).trim();
+    }
+
+    const isInternationalWithPlus = str.startsWith('+');
+    let digits = str.replace(/[^\d]/g, '');
+
+    if (!digits) return input;
+
+    if (digits.length === 8) {
+      return `+502 ${digits.substring(0, 4)}-${digits.substring(4)}${extension}`;
+    }
+    if (digits.length === 11 && digits.startsWith('502')) {
+      const num = digits.substring(3);
+      return `+502 ${num.substring(0, 4)}-${num.substring(4)}${extension}`;
+    }
+    if (isInternationalWithPlus || digits.length > 8) {
+      if (digits.startsWith('00')) {
+        digits = digits.substring(2);
+      }
+      if (isInternationalWithPlus || !digits.startsWith('502')) {
+        if (digits.length === 11 && digits.startsWith('1')) {
+          return `+1 (${digits.substring(1, 4)}) ${digits.substring(4, 7)}-${digits.substring(7)}${extension}`;
+        }
+        return `+${digits.substring(0, digits.length - 8)} ${digits.substring(digits.length - 8, digits.length - 4)}-${digits.substring(digits.length - 4)}${extension}`;
+      }
+    }
+    return `${str}${extension}`;
+  };
 
   const [submissions, setSubmissions] = useState([]);
   const [summary, setSummary] = useState({ total_submissions: 0, confirmed_count: 0, pending_count: 0, declined_count: 0 });
@@ -226,6 +266,48 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
   };
 
+  const handleResendSingleQR = async (record) => {
+    try {
+      const targetId = record.attendee_id || record.id;
+      const res = await api.invitations.resendQREmail(selectedEventId, targetId, record.email);
+      if (res.success) {
+        message.success(res.message || '✅ Correo con código QR reenviado exitosamente.');
+      } else {
+        message.error('Error al reenviar correo: ' + (res.error || 'Ocurrió un problema.'));
+      }
+    } catch (err) {
+      message.error('Error al reenviar correo: ' + err.message);
+    }
+  };
+
+  const handleResendBulkQR = () => {
+    const confirmedCount = submissions.filter(i => (i.status === 'confirmed' || i.status === 'checked_in') && (i.email || i.guest_email)).length;
+    if (confirmedCount === 0) {
+      message.warning('No hay invitados confirmados con correo electrónico registrado para reenviar su código QR.');
+      return;
+    }
+
+    Modal.confirm({
+      title: '📧 Reenviar Correos con QR a Confirmados',
+      content: `¿Estás seguro de reenviar el correo con código QR a los ${confirmedCount} invitado(s) que ya han completado su confirmación / preregistro?`,
+      okText: 'Sí, Reenviar Correos',
+      cancelText: 'Cancelar',
+      okButtonProps: { style: { backgroundColor: '#2563eb', borderColor: '#2563eb' } },
+      onOk: async () => {
+        try {
+          const res = await api.invitations.resendQREmailBulk(selectedEventId);
+          if (res.success) {
+            message.success(res.message || `✅ Reenvío completado: correos enviados a ${res.sent_count || confirmedCount} invitados.`);
+          } else {
+            message.error('Error en el reenvío masivo: ' + (res.error || 'Ocurrió un problema.'));
+          }
+        } catch (err) {
+          message.error('Error en el reenvío masivo: ' + err.message);
+        }
+      }
+    });
+  };
+
   const downloadQRImage = (guestName) => {
     const container = document.getElementById('guest-qr-download-container');
     const canvas = container?.querySelector('canvas');
@@ -293,13 +375,27 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
 
     if (search) {
-      const q = search.toLowerCase();
-      const fullName = (item.full_name || item.guest_name || `${item.first_name || ''} ${item.last_name || ''}`).toLowerCase();
-      const email = (item.email || item.guest_email || '').toLowerCase();
-      const company = (item.company || item.guest_company || item.empresa || item.additional_data?.empresa || item.additional_data?.company || '').toLowerCase();
-      const catName = (item.internal_category || item.category_name || item.event_categories?.name || '').toLowerCase();
-      const formCat = (item.form_category || item.additional_data?.categoria || item.additional_data?.category || item.additional_data?.tipo || '').toLowerCase();
-      return fullName.includes(q) || email.includes(q) || company.includes(q) || catName.includes(q) || formCat.includes(q);
+      const normalizeStr = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const queryNorm = normalizeStr(search);
+      const tokens = queryNorm.split(/\s+/).filter(Boolean);
+
+      const fullName = normalizeStr(item.full_name || item.guest_name || `${item.first_name || ''} ${item.last_name || ''}`);
+      const email = normalizeStr(item.email || item.guest_email);
+      const company = normalizeStr(item.company || item.guest_company || item.empresa || item.additional_data?.empresa || item.additional_data?.company);
+      const jobTitle = normalizeStr(item.job_title || item.puesto || item.cargo || item.additional_data?.cargo || item.additional_data?.job_title);
+      const phone = normalizeStr(item.phone || item.telefono || item.celular || item.additional_data?.phone || item.additional_data?.telefono);
+      const code = normalizeStr(item.code || item.invitation_code || item.qr_code);
+      const internalCat = normalizeStr(item.internal_category || item.category_name || item.event_categories?.name);
+      const formCat = normalizeStr(item.form_category || item.additional_data?.categoria || item.additional_data?.tipo);
+
+      let addDataValues = '';
+      if (item.additional_data && typeof item.additional_data === 'object') {
+        addDataValues = normalizeStr(Object.values(item.additional_data).join(' '));
+      }
+
+      const searchableText = `${fullName} ${email} ${company} ${jobTitle} ${phone} ${code} ${internalCat} ${formCat} ${addDataValues}`;
+      const matchesAllTokens = tokens.every(token => searchableText.includes(token));
+      if (!matchesAllTokens) return false;
     }
     return true;
   });
@@ -349,6 +445,23 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         }
         return <Text strong style={{ color: '#1e293b' }}>{comp}</Text>;
+      }
+    },
+    {
+      title: 'Teléfono',
+      dataIndex: 'phone',
+      key: 'phone',
+      render: (text, record) => {
+        const ph = text || record.phone || record.telefono || record.additional_data?.phone || record.additional_data?.telefono;
+        if (!ph) {
+          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        }
+        return (
+          <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
+            <PhoneOutlined style={{ marginRight: '6px', color: '#10b981' }} />
+            {formatPhone(ph)}
+          </Text>
+        );
       }
     },
     {
@@ -531,6 +644,15 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               />
             </Tooltip>
           )}
+          {(record.status === 'confirmed' || record.status === 'checked_in') && (
+            <Tooltip title="Reenviar Correo con Código QR">
+              <Button
+                size="small"
+                icon={<MailOutlined style={{ color: '#2563eb' }} />}
+                onClick={() => handleResendSingleQR(record)}
+              />
+            </Tooltip>
+          )}
           {canRegenerateQR && (
             <Tooltip title="Regenerar Código QR">
               <Popconfirm
@@ -562,6 +684,15 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         </div>
 
         <Space wrap>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            size={embedded ? "middle" : "large"}
+            onClick={handleResendBulkQR}
+            style={{ backgroundColor: '#2563eb', borderColor: '#2563eb', fontWeight: '700' }}
+          >
+            Reenviar QR a Confirmados
+          </Button>
           {canImportExcel && (
             <Button icon={<UploadOutlined />} size={embedded ? "middle" : "large"} onClick={() => setShowImportModal(true)}>
               Cargar Excel / CSV

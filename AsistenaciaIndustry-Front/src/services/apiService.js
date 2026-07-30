@@ -232,6 +232,8 @@ export const api = {
           const formCat = inv.additional_data?.categoria || inv.additional_data?.category || inv.additional_data?.tipo || inv.additional_data?.categoria_formulario || '';
           const internalCat = inv.category_name || (inv.event_categories ? inv.event_categories.name : null);
 
+          const attendeePhone = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? (inv.attendees[0]?.phone || inv.attendees[0]?.additional_data?.phone || inv.attendees[0]?.additional_data?.telefono) : '';
+
           const invItem = {
             ...inv,
             id: inv.id,
@@ -240,6 +242,7 @@ export const api = {
             email: inv.guest_email || inv.email || '',
             company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
             job_title: inv.job_title || attendeeJob || '',
+            phone: inv.phone || attendeePhone || inv.additional_data?.phone || inv.additional_data?.telefono || '',
             category_name: internalCat || null,
             internal_category: internalCat || null,
             form_category: formCat,
@@ -267,6 +270,7 @@ export const api = {
 
           const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
           const subInternalCat = sub.category_name || (sub.event_categories ? sub.event_categories.name : null);
+          const subPhone = sub.phone || sub.additional_data?.phone || sub.additional_data?.telefono || sub.additional_data?.celular || '';
 
           if (existing) {
             existing.attendee_id = sub.id;
@@ -278,6 +282,9 @@ export const api = {
             }
             if (sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo) {
               existing.job_title = sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo;
+            }
+            if (subPhone) {
+              existing.phone = subPhone;
             }
             if (sub.qr_code) {
               existing.qr_code = sub.qr_code;
@@ -304,6 +311,7 @@ export const api = {
                 email: sub.email || '',
                 company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
                 job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
+                phone: subPhone,
                 category_name: subInternalCat || null,
                 internal_category: subInternalCat || null,
                 form_category: subFormCat,
@@ -357,7 +365,15 @@ export const api = {
       body: JSON.stringify({ invitation_ids: invitationIds, category_id: categoryId, category_name: categoryName })
     }),
     toggle: (id, is_active) => request(`/events/invitations/${id}/toggle`, { method: 'PUT', body: JSON.stringify({ is_active }) }),
-    regenerate: (id) => request(`/events/invitations/${id}/regenerate`, { method: 'POST' })
+    regenerate: (id) => request(`/events/invitations/${id}/regenerate`, { method: 'POST' }),
+    resendQREmail: (eventId, guestId, email) => request(`/events/${eventId}/resend-qr-email`, {
+      method: 'POST',
+      body: JSON.stringify({ guest_id: guestId, email })
+    }),
+    resendQREmailBulk: (eventId, guestIds = null) => request(`/events/${eventId}/resend-qr-email-bulk`, {
+      method: 'POST',
+      body: JSON.stringify({ guest_ids: guestIds })
+    })
   },
 
   // 6. Public Registration Endpoints

@@ -4,6 +4,7 @@ import { supabase } from '../config/supabase.js';
 import { InvitationModel } from '../models/invitationModel.js';
 import { generateUniqueInvitationCode, generateUniqueAttendeeCode } from '../services/qrService.js';
 import { parseGuestsFromExcelBuffer } from '../services/excelService.js';
+import { sendQRTicketEmail } from '../services/emailService.js';
 import { requirePermission } from '../middleware/authMiddleware.js';
 
 const router = Router();
@@ -229,6 +230,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
         const attUpdates = { category_id: catId || existingMatch.category_id };
         if (g.company) attUpdates.company = g.company;
         if (g.job_title) attUpdates.job_title = g.job_title;
+        if (g.phone) attUpdates.phone = g.phone;
 
         await supabase
           .from('attendees')
@@ -259,10 +261,11 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
             company: g.company || '',
             job_title: g.job_title || '',
             category_id: catId || null,
+            phone: g.phone || '',
             qr_code: generateUniqueAttendeeCode(),
             status: 'pending',
             is_public_registration: false,
-            additional_data: {}
+            additional_data: { phone: g.phone || '' }
           }
         });
       }
@@ -511,6 +514,162 @@ router.delete('/invitations/:id/permanent', requirePermission('MANAGE_GUESTS'), 
       message: 'Invitación eliminada permanentemente de la base de datos.'
     });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/events/:eventId/resend-qr-email - Reenviar correo con código QR (Individual)
+router.post('/:eventId/resend-qr-email', requirePermission('VIEW_GUESTS'), async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { guest_id, email: overrideEmail } = req.body;
+
+    if (!guest_id) {
+      return res.status(400).json({ success: false, error: 'ID de invitado requerido' });
+    }
+
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (eventErr || !event) {
+      return res.status(404).json({ success: false, error: 'Evento no encontrado' });
+    }
+
+    let { data: attendee } = await supabase
+      .from('attendees')
+      .select('*, event_categories(name)')
+      .eq('event_id', eventId)
+      .or(`id.eq.${guest_id},invitation_id.eq.${guest_id}`)
+      .maybeSingle();
+
+    if (!attendee) {
+      const { data: inv } = await supabase
+        .from('invitations')
+        .select('*, event_categories(name)')
+        .eq('id', guest_id)
+        .maybeSingle();
+
+      if (inv) {
+        attendee = {
+          first_name: inv.guest_name ? inv.guest_name.split(' ')[0] : 'Invitado',
+          last_name: inv.guest_name ? inv.guest_name.split(' ').slice(1).join(' ') : '',
+          email: inv.guest_email,
+          qr_code: inv.code,
+          status: inv.status || 'confirmed'
+        };
+      }
+    }
+
+    if (!attendee) {
+      return res.status(404).json({ success: false, error: 'Invitado no encontrado' });
+    }
+
+    const recipientEmail = overrideEmail || attendee.email;
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, error: 'El invitado no posee correo electrónico registrado' });
+    }
+
+    const attendeeName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || attendee.guest_name || 'Invitado';
+    const qrCode = attendee.qr_code || attendee.code || generateUniqueAttendeeCode();
+
+    await sendQRTicketEmail({
+      to: recipientEmail,
+      attendeeName,
+      eventName: event.title || event.name || 'Evento Corporativo',
+      location: event.location || '',
+      startDate: event.start_date || event.date,
+      logoUrl: event.logo_url || event.logo,
+      bannerUrl: event.banner_url || event.banner,
+      qrCode,
+      formConfig: event.form_config,
+      emailConfig: event.email_config
+    });
+
+    res.json({
+      success: true,
+      message: `✅ Correo con código QR reenviado exitosamente a ${recipientEmail}`
+    });
+  } catch (err) {
+    console.error('Error re-enviando correo QR:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/events/:eventId/resend-qr-email-bulk - Reenviar correo con código QR a confirmados (Masivo)
+router.post('/:eventId/resend-qr-email-bulk', requirePermission('VIEW_GUESTS'), async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { guest_ids } = req.body;
+
+    const { data: event, error: eventErr } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (eventErr || !event) {
+      return res.status(404).json({ success: false, error: 'Evento no encontrado' });
+    }
+
+    let query = supabase
+      .from('attendees')
+      .select('*')
+      .eq('event_id', eventId)
+      .in('status', ['confirmed', 'checked_in'])
+      .is('deleted_at', null);
+
+    if (Array.isArray(guest_ids) && guest_ids.length > 0) {
+      query = query.in('id', guest_ids);
+    }
+
+    const { data: confirmedAttendees } = await query;
+
+    if (!confirmedAttendees || confirmedAttendees.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No se encontraron invitados confirmados para enviar correos.'
+      });
+    }
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    for (const attendee of confirmedAttendees) {
+      if (!attendee.email) continue;
+      try {
+        const attendeeName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || 'Invitado';
+        const qrCode = attendee.qr_code || generateUniqueAttendeeCode();
+
+        await sendQRTicketEmail({
+          to: attendee.email,
+          attendeeName,
+          eventName: event.title || event.name || 'Evento Corporativo',
+          location: event.location || '',
+          startDate: event.start_date || event.date,
+          logoUrl: event.logo_url || event.logo,
+          bannerUrl: event.banner_url || event.banner,
+          qrCode,
+          formConfig: event.form_config,
+          emailConfig: event.email_config
+        });
+        sentCount++;
+      } catch (e) {
+        console.error(`Error enviando correo QR a ${attendee.email}:`, e);
+        failedCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      sent_count: sentCount,
+      failed_count: failedCount,
+      message: `✅ Reenvío completado: ${sentCount} correo(s) enviado(s) exitosamente.`
+    });
+  } catch (err) {
+    console.error('Error re-enviando correos masivos:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
