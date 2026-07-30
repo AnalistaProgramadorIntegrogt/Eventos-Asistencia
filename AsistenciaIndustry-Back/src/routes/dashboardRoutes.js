@@ -85,11 +85,13 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       }
     });
 
+    const totalAllGuests = (attendees || []).length;
     const categoryChartData = Object.keys(categoryStats).map(cat => ({
       name: cat,
       asistentes: categoryStats[cat].asistieron,
       total: categoryStats[cat].total,
       pendientes: categoryStats[cat].pendientes,
+      category_pct: totalAllGuests > 0 ? Math.round((categoryStats[cat].total / totalAllGuests) * 100) : 0,
       conversion_pct: categoryStats[cat].total > 0 ? Math.round((categoryStats[cat].asistieron / categoryStats[cat].total) * 100) : 0
     }));
 

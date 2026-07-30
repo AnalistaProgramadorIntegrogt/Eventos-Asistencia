@@ -217,34 +217,35 @@ export default function AdminDashboard({ selectedEventId }) {
           <Card
             title={
               <Space>
-                <BarChartOutlined style={{ color: '#c3302d' }} />
-                <span>Asistentes e Invitados por Categoría Interna</span>
+                <BarChartOutlined style={{ color: '#7c3aed' }} />
+                <span>Invitados por Categoría Interna</span>
               </Space>
             }
             bordered={false}
             style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)' }}
           >
             {categoryData.length === 0 ? (
-              <Text type="secondary">Sin registros por categoría aún.</Text>
+              <Text type="secondary">Sin registros por categoría interna aún.</Text>
             ) : (
               categoryData.map((cat, idx) => {
                 const totalInCat = cat.total || 0;
-                const attendedInCat = cat.asistentes || 0;
-                const pct = totalInCat > 0 ? Math.round((attendedInCat / totalInCat) * 100) : (cat.conversion_pct || 0);
+                const grandTotal = metrics.total_submissions || metrics.total_guests || 0;
+                const pct = cat.category_pct !== undefined ? cat.category_pct : (grandTotal > 0 ? Math.round((totalInCat / grandTotal) * 100) : 0);
+
                 return (
                   <div key={idx} style={{ marginBottom: '18px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
                       <Text strong>{cat.name}</Text>
                       <Space>
                         <Text type="secondary" style={{ fontSize: '0.82rem' }}>
-                          {attendedInCat} asistieron {totalInCat > 0 ? `de ${totalInCat} invitados` : ''}
+                          {totalInCat} invitado(s) {grandTotal > 0 ? `de ${grandTotal} total` : ''}
                         </Text>
-                        <Tag color={pct >= 50 ? 'green' : 'volcano'} style={{ fontWeight: 'bold', margin: 0 }}>
+                        <Tag color="purple" style={{ fontWeight: 'bold', margin: 0 }}>
                           {pct}%
                         </Tag>
                       </Space>
                     </div>
-                    <Progress percent={pct} strokeColor="#c3302d" showInfo={false} />
+                    <Progress percent={pct} strokeColor="#7c3aed" showInfo={false} />
                   </div>
                 );
               })
