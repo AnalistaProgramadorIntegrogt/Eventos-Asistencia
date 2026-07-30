@@ -102,24 +102,40 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       }
     });
 
-    const categoryChartData = Object.keys(categoryStats).map(cat => ({
-      name: cat,
-      confirmados: categoryStats[cat].confirmados,
-      asistentes: categoryStats[cat].asistieron,
-      total: categoryStats[cat].total,
-      pendientes: categoryStats[cat].pendientes,
-      confirmation_pct: categoryStats[cat].total > 0 ? Math.round((categoryStats[cat].confirmados / categoryStats[cat].total) * 100) : 0
-    }));
+    const totalAllGuests = (attendees || []).length;
+
+    const categoryChartData = Object.keys(categoryStats).map(cat => {
+      const tot = categoryStats[cat].total;
+      const conf = categoryStats[cat].confirmados;
+      const asist = categoryStats[cat].asistieron;
+
+      return {
+        name: cat,
+        confirmados: conf,
+        asistentes: asist,
+        total: tot,
+        pendientes: categoryStats[cat].pendientes,
+        confirmation_pct: tot > 0 ? Math.round((conf / tot) * 100) : 0,
+        attendance_pct: tot > 0 ? Math.round((asist / tot) * 100) : 0,
+        distribution_pct: totalAllGuests > 0 ? Math.round((tot / totalAllGuests) * 100) : 0
+      };
+    });
 
     if (noCatStats.total > 0) {
+      const tot = noCatStats.total;
+      const conf = noCatStats.confirmados;
+      const asist = noCatStats.asistieron;
+
       categoryChartData.push({
         name: 'Sin Categoría',
         is_no_category: true,
-        confirmados: noCatStats.confirmados,
-        asistentes: noCatStats.asistieron,
-        total: noCatStats.total,
+        confirmados: conf,
+        asistentes: asist,
+        total: tot,
         pendientes: noCatStats.pendientes,
-        confirmation_pct: noCatStats.total > 0 ? Math.round((noCatStats.confirmados / noCatStats.total) * 100) : 0
+        confirmation_pct: tot > 0 ? Math.round((conf / tot) * 100) : 0,
+        attendance_pct: tot > 0 ? Math.round((asist / tot) * 100) : 0,
+        distribution_pct: totalAllGuests > 0 ? Math.round((tot / totalAllGuests) * 100) : 0
       });
     }
 

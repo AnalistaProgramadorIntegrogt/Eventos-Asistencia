@@ -28,6 +28,7 @@ router.get('/:eventId/form-submissions', requirePermission('VIEW_GUESTS'), async
       email: att.email,
       company: att.company,
       job_title: att.job_title,
+      phone: att.phone || att.additional_data?.phone || att.additional_data?.telefono || '',
       category_id: att.category_id,
       category_name: att.event_categories ? att.event_categories.name : null,
       invitation_code: att.invitations ? att.invitations.code : null,

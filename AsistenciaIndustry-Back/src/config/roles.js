@@ -21,6 +21,8 @@ export const AVAILABLE_PERMISSIONS = [
   { id: 'VIEW_GUEST_QR', name: 'Ver / Descargar Código QR', category: 'Invitados' },
   { id: 'REGENERATE_GUEST_QR', name: 'Regenerar Código QR', category: 'Invitados' },
   { id: 'COPY_GUEST_LINK', name: 'Copiar Enlace Personalizado', category: 'Invitados' },
+  { id: 'RESEND_QR_EMAIL_SINGLE', name: 'Reenviar Correo QR Individual', category: 'Invitados' },
+  { id: 'RESEND_QR_EMAIL_BULK', name: 'Reenviar Correos QR Masivos a Confirmados', category: 'Invitados' },
   
   { id: 'SCAN_QR_CHECKIN', name: 'Escanear QR (Cámara / Lector)', category: 'Check-in' },
   { id: 'MARK_ATTENDANCE_MANUAL', name: 'Marcar Asistencia Manual', category: 'Check-in' },
@@ -62,6 +64,8 @@ export const PERMISSIONS = {
   VIEW_GUEST_QR: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.OPERATOR],
   REGENERATE_GUEST_QR: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   COPY_GUEST_LINK: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.OPERATOR],
+  RESEND_QR_EMAIL_SINGLE: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+  RESEND_QR_EMAIL_BULK: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
   MANAGE_GUESTS: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
 
   // Check-In y QR Granular

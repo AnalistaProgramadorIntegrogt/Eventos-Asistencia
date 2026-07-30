@@ -145,7 +145,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
     // Consultar invitaciones existentes en el evento para desduplicación inteligente por Nombre + Correo (+ Empresa)
     const { data: existingInvitations } = await supabase
       .from('invitations')
-      .select('id, guest_name, guest_email, code, category_id, attendees(company)')
+      .select('id, guest_name, guest_email, code, category_id, phone, attendees(company, phone)')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
@@ -519,7 +519,7 @@ router.delete('/invitations/:id/permanent', requirePermission('MANAGE_GUESTS'), 
 });
 
 // POST /api/events/:eventId/resend-qr-email - Reenviar correo con código QR (Individual)
-router.post('/:eventId/resend-qr-email', requirePermission('VIEW_GUESTS'), async (req, res) => {
+router.post('/:eventId/resend-qr-email', requirePermission('RESEND_QR_EMAIL_SINGLE'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { guest_id, email: overrideEmail } = req.body;
@@ -599,7 +599,7 @@ router.post('/:eventId/resend-qr-email', requirePermission('VIEW_GUESTS'), async
 });
 
 // POST /api/events/:eventId/resend-qr-email-bulk - Reenviar correo con código QR a confirmados (Masivo)
-router.post('/:eventId/resend-qr-email-bulk', requirePermission('VIEW_GUESTS'), async (req, res) => {
+router.post('/:eventId/resend-qr-email-bulk', requirePermission('RESEND_QR_EMAIL_BULK'), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { guest_ids } = req.body;

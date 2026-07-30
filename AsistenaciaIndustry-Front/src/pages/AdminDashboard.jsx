@@ -211,18 +211,19 @@ export default function AdminDashboard({ selectedEventId }) {
         </Col>
       </Row>
 
-      {/* Analytics Section */}
+      {/* Analytics Section - 3 Tarjetas de Categorías Internas */}
       <Row gutter={[24, 24]} style={{ marginBottom: '28px' }}>
-        <Col xs={24} md={12}>
+        {/* Card 1: Confirmaciones y Preregistros por Categoría */}
+        <Col xs={24} lg={8}>
           <Card
             title={
               <Space>
-                <BarChartOutlined style={{ color: '#7c3aed' }} />
-                <span>Confirmaciones y Preregistros por Categoría Interna</span>
+                <CheckCircleOutlined style={{ color: '#2563eb' }} />
+                <span>Confirmaciones por Categoría</span>
               </Space>
             }
             bordered={false}
-            style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)' }}
+            style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', height: '100%' }}
           >
             {categoryData.length === 0 ? (
               <Text type="secondary">Sin registros por categoría interna aún.</Text>
@@ -241,14 +242,14 @@ export default function AdminDashboard({ selectedEventId }) {
                       </Text>
                       <Space>
                         <Text type="secondary" style={{ fontSize: '0.82rem' }}>
-                          {confirmedInCat} confirmado(s) {totalInCat > 0 ? `de ${totalInCat} invitados` : ''}
+                          {confirmedInCat} confirmado(s) de {totalInCat}
                         </Text>
-                        <Tag color={isNoCat ? 'default' : (pct >= 50 ? 'green' : 'volcano')} style={{ fontWeight: 'bold', margin: 0 }}>
+                        <Tag color={isNoCat ? 'default' : (pct >= 50 ? 'blue' : 'volcano')} style={{ fontWeight: 'bold', margin: 0 }}>
                           {pct}%
                         </Tag>
                       </Space>
                     </div>
-                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : (pct >= 50 ? '#10b981' : '#f59e0b')} showInfo={false} />
+                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : (pct >= 50 ? '#2563eb' : '#f59e0b')} showInfo={false} />
                   </div>
                 );
               })
@@ -256,7 +257,98 @@ export default function AdminDashboard({ selectedEventId }) {
           </Card>
         </Col>
 
-        <Col xs={24} md={12}>
+        {/* Card 2: Distribución por Total de Invitados por Categoría */}
+        <Col xs={24} lg={8}>
+          <Card
+            title={
+              <Space>
+                <BarChartOutlined style={{ color: '#7c3aed' }} />
+                <span>Distribución por Total Invitados</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', height: '100%' }}
+          >
+            {categoryData.length === 0 ? (
+              <Text type="secondary">Sin registros por categoría interna aún.</Text>
+            ) : (
+              categoryData.map((cat, idx) => {
+                const isNoCat = cat.is_no_category || cat.name === 'Sin Categoría';
+                const totalInCat = cat.total || 0;
+                const grandTotal = metrics.total_submissions || metrics.total_guests || 0;
+                const pct = cat.distribution_pct !== undefined ? cat.distribution_pct : (grandTotal > 0 ? Math.round((totalInCat / grandTotal) * 100) : 0);
+
+                return (
+                  <div key={idx} style={{ marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                      <Text strong style={{ color: isNoCat ? '#64748b' : '#1e293b' }}>
+                        {isNoCat ? '🏷️ Sin Categoría' : cat.name}
+                      </Text>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: '0.82rem' }}>
+                          {totalInCat} invitado(s) de {grandTotal} total
+                        </Text>
+                        <Tag color={isNoCat ? 'default' : 'purple'} style={{ fontWeight: 'bold', margin: 0 }}>
+                          {pct}%
+                        </Tag>
+                      </Space>
+                    </div>
+                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : '#7c3aed'} showInfo={false} />
+                  </div>
+                );
+              })
+            )}
+          </Card>
+        </Col>
+
+        {/* Card 3: Asistencia Real (Check-in) por Categoría */}
+        <Col xs={24} lg={8}>
+          <Card
+            title={
+              <Space>
+                <TagOutlined style={{ color: '#10b981' }} />
+                <span>Asistencia Real por Categoría</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', height: '100%' }}
+          >
+            {categoryData.length === 0 ? (
+              <Text type="secondary">Sin registros por categoría interna aún.</Text>
+            ) : (
+              categoryData.map((cat, idx) => {
+                const isNoCat = cat.is_no_category || cat.name === 'Sin Categoría';
+                const totalInCat = cat.total || 0;
+                const attendedInCat = cat.asistentes || 0;
+                const pct = cat.attendance_pct !== undefined ? cat.attendance_pct : (totalInCat > 0 ? Math.round((attendedInCat / totalInCat) * 100) : 0);
+
+                return (
+                  <div key={idx} style={{ marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                      <Text strong style={{ color: isNoCat ? '#64748b' : '#1e293b' }}>
+                        {isNoCat ? '🏷️ Sin Categoría' : cat.name}
+                      </Text>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: '0.82rem' }}>
+                          {attendedInCat} asistieron de {totalInCat}
+                        </Text>
+                        <Tag color={isNoCat ? 'default' : (pct >= 50 ? 'green' : 'volcano')} style={{ fontWeight: 'bold', margin: 0 }}>
+                          {pct}%
+                        </Tag>
+                      </Space>
+                    </div>
+                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : '#10b981'} showInfo={false} />
+                  </div>
+                );
+              })
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Empresas Representadas */}
+      <Row gutter={[24, 24]} style={{ marginBottom: '28px' }}>
+        <Col xs={24}>
           <Card
             title={
               <Space>
@@ -276,7 +368,7 @@ export default function AdminDashboard({ selectedEventId }) {
                     key={idx}
                     style={{
                       display: 'flex',
-                      justify: 'space-between',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
                       padding: '10px 14px',
                       backgroundColor: '#f8f9fa',

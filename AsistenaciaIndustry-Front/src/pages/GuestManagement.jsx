@@ -29,6 +29,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const canCopyLink = hasPerm('COPY_GUEST_LINK');
   const canRegenerateQR = hasPerm('REGENERATE_GUEST_QR');
   const canAssignBulkCategory = hasPerm('ASSIGN_BULK_CATEGORY') || hasPerm('ASSIGN_GUEST_CATEGORY') || hasPerm('EDIT_GUEST_INFO') || hasPerm('EDIT_GUEST');
+  const canResendSingleQR = hasPerm('RESEND_QR_EMAIL_SINGLE');
+  const canResendBulkQR = hasPerm('RESEND_QR_EMAIL_BULK');
 
   const formatPhone = (input) => {
     if (!input) return '';
@@ -644,11 +646,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               />
             </Tooltip>
           )}
-          {(record.status === 'confirmed' || record.status === 'checked_in') && (
+          {canResendSingleQR && (record.status === 'confirmed' || record.status === 'checked_in') && (
             <Tooltip title="Reenviar Correo con Código QR">
               <Button
                 size="small"
-                icon={<MailOutlined style={{ color: '#2563eb' }} />}
+                icon={<MailOutlined style={{ color: '#0284c7' }} />}
                 onClick={() => handleResendSingleQR(record)}
               />
             </Tooltip>
@@ -684,15 +686,16 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         </div>
 
         <Space wrap>
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            size={embedded ? "middle" : "large"}
-            onClick={handleResendBulkQR}
-            style={{ backgroundColor: '#2563eb', borderColor: '#2563eb', fontWeight: '700' }}
-          >
-            Reenviar QR a Confirmados
-          </Button>
+          {canResendBulkQR && (
+            <Button
+              icon={<SendOutlined style={{ color: '#0284c7' }} />}
+              size="middle"
+              onClick={handleResendBulkQR}
+              style={{ fontWeight: '600', borderColor: '#cbd5e1', color: '#334155' }}
+            >
+              Reenviar QR a Confirmados
+            </Button>
+          )}
           {canImportExcel && (
             <Button icon={<UploadOutlined />} size={embedded ? "middle" : "large"} onClick={() => setShowImportModal(true)}>
               Cargar Excel / CSV
