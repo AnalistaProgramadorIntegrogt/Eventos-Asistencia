@@ -350,7 +350,15 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
 
   // Helper check if record is VIP / imported
   const checkIsVip = (record) => {
-    return record.is_imported || record.category_name === 'VIP' || record.event_categories?.name === 'VIP' || record.category_id === 'vip';
+    return (
+      record.is_imported ||
+      record.is_public_registration === false ||
+      !!record.invitation_id ||
+      !!record.internal_category ||
+      (record.category_name && record.category_name !== 'General' && record.category_name !== 'General / Sin categoría') ||
+      record.category_id === 'vip' ||
+      record.event_categories?.name === 'VIP'
+    );
   };
 
   // Filtering Logic

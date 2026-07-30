@@ -271,8 +271,9 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       }
     }
 
-    // Insertar nuevas invitaciones en bloques (chunks)
+    // Insertar nuevas invitaciones en bloques (chunks) y mapear sus IDs por código único
     const allInserted = [];
+    const codeToInvIdMap = new Map();
     const chunkSize = 40;
 
     for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
@@ -284,16 +285,25 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
       if (chunkError) throw chunkError;
       if (insertedChunk) {
+        insertedChunk.forEach(inv => {
+          if (inv.code) {
+            codeToInvIdMap.set(inv.code.toLowerCase().trim(), inv.id);
+          }
+        });
         allInserted.push(...insertedChunk);
       }
     }
 
-    // Insertar asistentes correspondientes para las nuevas invitaciones
+    // Insertar asistentes correspondientes para las nuevas invitaciones asociando por el código único
     if (allInserted && allInserted.length > 0) {
-      const newAttendeesToInsert = allInserted.map((inv, idx) => ({
-        ...itemsToInsert[idx].attendee,
-        invitation_id: inv.id
-      }));
+      const newAttendeesToInsert = itemsToInsert.map(item => {
+        const invCode = (item.invitation.code || '').toLowerCase().trim();
+        const matchedInvId = codeToInvIdMap.get(invCode);
+        return {
+          ...item.attendee,
+          invitation_id: matchedInvId || null
+        };
+      });
 
       for (let i = 0; i < newAttendeesToInsert.length; i += chunkSize) {
         const chunk = newAttendeesToInsert.slice(i, i + chunkSize);

@@ -253,6 +253,13 @@ export const api = {
           combinedMap.set(inv.id, invItem);
           invitationIdMap.set(inv.id, invItem);
           if (cleanCode) codeMap.set(cleanCode, invItem);
+
+          const normName = (invItem.full_name || '').toLowerCase().trim();
+          const normComp = (invItem.company || '').toLowerCase().trim();
+          if (cleanEmail && normName) {
+            if (normComp) emailMap.set(`${normName}|${cleanEmail}|${normComp}`, invItem);
+            if (!emailMap.has(`${normName}|${cleanEmail}`)) emailMap.set(`${normName}|${cleanEmail}`, invItem);
+          }
         });
 
         // 2. Procesar formSubmissions (attendees) y fusionar con invitaciones sin duplicar
@@ -266,6 +273,15 @@ export const api = {
             existing = invitationIdMap.get(subInvId);
           } else if (subCode && codeMap.has(subCode)) {
             existing = codeMap.get(subCode);
+          } else {
+            const subNormName = (sub.full_name || `${sub.first_name || ''} ${sub.last_name || ''}`).toLowerCase().trim();
+            const subNormComp = (sub.company || sub.additional_data?.company || sub.additional_data?.empresa || '').toLowerCase().trim();
+            if (subNormComp) {
+              existing = emailMap.get(`${subNormName}|${subEmail}|${subNormComp}`);
+            }
+            if (!existing && subEmail && subNormName) {
+              existing = emailMap.get(`${subNormName}|${subEmail}`);
+            }
           }
 
           const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
@@ -304,6 +320,8 @@ export const api = {
             }
           } else {
             if (!combinedMap.has(sub.id)) {
+              const isImportedGuest = sub.is_public_registration === false || sub.invitation_id !== null || sub.is_imported === true || !!subInternalCat;
+
               const newItem = {
                 ...sub,
                 id: sub.id,
@@ -315,8 +333,8 @@ export const api = {
                 category_name: subInternalCat || null,
                 internal_category: subInternalCat || null,
                 form_category: subFormCat,
-                is_imported: false,
-                is_public_registration: true
+                is_imported: isImportedGuest,
+                is_public_registration: !isImportedGuest
               };
               combinedMap.set(sub.id, newItem);
             }
