@@ -279,7 +279,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 });
 
 // POST /api/events/:eventId/invitations/bulk-category - Asignación masiva de categoría a invitados seleccionados
-router.post('/:eventId/invitations/bulk-category', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST', 'IMPORT_GUESTS_EXCEL']), async (req, res) => {
+router.post('/:eventId/invitations/bulk-category', requirePermission(['ASSIGN_BULK_CATEGORY', 'ASSIGN_GUEST_CATEGORY', 'EDIT_GUEST_INFO', 'EDIT_GUEST', 'IMPORT_GUESTS_EXCEL']), async (req, res) => {
   try {
     const { eventId } = req.params;
     const { invitation_ids, category_id, category_name } = req.body;

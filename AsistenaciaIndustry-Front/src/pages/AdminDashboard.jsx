@@ -218,7 +218,7 @@ export default function AdminDashboard({ selectedEventId }) {
             title={
               <Space>
                 <BarChartOutlined style={{ color: '#c3302d' }} />
-                <span>Asistentes e Invitados por Categoría</span>
+                <span>Asistentes e Invitados por Categoría Interna</span>
               </Space>
             }
             bordered={false}

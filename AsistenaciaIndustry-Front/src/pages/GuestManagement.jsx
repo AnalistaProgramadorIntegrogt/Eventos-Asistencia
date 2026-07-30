@@ -28,6 +28,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const canViewQR = hasPerm('VIEW_GUEST_QR');
   const canCopyLink = hasPerm('COPY_GUEST_LINK');
   const canRegenerateQR = hasPerm('REGENERATE_GUEST_QR');
+  const canAssignBulkCategory = hasPerm('ASSIGN_BULK_CATEGORY') || hasPerm('ASSIGN_GUEST_CATEGORY') || hasPerm('EDIT_GUEST_INFO') || hasPerm('EDIT_GUEST');
 
   const [submissions, setSubmissions] = useState([]);
   const [summary, setSummary] = useState({ total_submissions: 0, confirmed_count: 0, pending_count: 0, declined_count: 0 });
@@ -36,9 +37,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [categories, setCategories] = useState([]);
-  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
-  const [savingBulkCat, setSavingBulkCat] = useState(false);
 
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'vip' | 'public'
   const [showSingleModal, setShowSingleModal] = useState(false);
@@ -52,7 +50,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [qrModalGuest, setQrModalGuest] = useState(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
-  const [bulkCategoryForm] = Form.useForm();
 
   const fetchCategories = async () => {
     if (!selectedEventId) return;
@@ -94,36 +91,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     } catch (err) {
       message.error(err.message);
-    }
-  };
-
-  const handleApplyBulkCategory = async (values) => {
-    if (selectedRowKeys.length === 0) {
-      message.warning('Seleccione al menos un invitado.');
-      return;
-    }
-    setSavingBulkCat(true);
-    try {
-      const res = await api.invitations.bulkUpdateCategory(
-        selectedEventId,
-        selectedRowKeys,
-        values.category_id || null,
-        values.category_name || null
-      );
-      if (res && res.success !== false) {
-        message.success(`Categoría asignada a ${selectedRowKeys.length} invitado(s) correctamente.`);
-        setShowBulkCategoryModal(false);
-        bulkCategoryForm.resetFields();
-        setSelectedRowKeys([]);
-        fetchCategories();
-        fetchSubmissions(false);
-      } else {
-        message.error('Error al asignar categoría: ' + (res?.error || 'Intente de nuevo.'));
-      }
-    } catch (err) {
-      message.error(err.message);
-    } finally {
-      setSavingBulkCat(false);
     }
   };
 
@@ -312,8 +279,9 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       const fullName = (item.full_name || item.guest_name || `${item.first_name || ''} ${item.last_name || ''}`).toLowerCase();
       const email = (item.email || item.guest_email || '').toLowerCase();
       const company = (item.company || item.guest_company || item.empresa || item.additional_data?.empresa || item.additional_data?.company || '').toLowerCase();
-      const catName = (item.category_name || item.event_categories?.name || '').toLowerCase();
-      return fullName.includes(q) || email.includes(q) || company.includes(q) || catName.includes(q);
+      const catName = (item.internal_category || item.category_name || item.event_categories?.name || '').toLowerCase();
+      const formCat = (item.form_category || item.additional_data?.categoria || item.additional_data?.category || item.additional_data?.tipo || '').toLowerCase();
+      return fullName.includes(q) || email.includes(q) || company.includes(q) || catName.includes(q) || formCat.includes(q);
     }
     return true;
   });
@@ -366,16 +334,31 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     },
     {
-      title: 'Categoría',
-      key: 'category',
+      title: 'Categoría Interna',
+      key: 'internal_category',
       render: (_, record) => {
-        const catName = record.category_name || (record.event_categories ? record.event_categories.name : null);
-        if (!catName) {
-          return <Tag color="default" style={{ borderRadius: '4px' }}>Sin Categoría</Tag>;
+        const catName = record.internal_category || record.category_name || (record.event_categories ? record.event_categories.name : null);
+        if (!catName || catName === 'General') {
+          return <Tag color="default" style={{ borderRadius: '4px' }}>General / Sin Asignar</Tag>;
         }
         return (
           <Tag color="purple" icon={<TagOutlined />} style={{ fontWeight: 'bold', borderRadius: '4px' }}>
             {catName}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: 'Categoría del Formulario',
+      key: 'form_category',
+      render: (_, record) => {
+        const formCat = record.form_category || record.additional_data?.categoria || record.additional_data?.category || record.additional_data?.tipo || record.additional_data?.categoria_formulario;
+        if (!formCat) {
+          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        }
+        return (
+          <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
+            🌐 {formCat}
           </Tag>
         );
       }
@@ -625,14 +608,14 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               <Select
                 value={categoryFilter}
                 onChange={setCategoryFilter}
-                style={{ width: '190px' }}
-                placeholder="Filtrar por Categoría"
+                style={{ width: '220px' }}
+                placeholder="Filtrar por Categoría Interna"
               >
-                <Select.Option value="">🏷️ Todas las Categorías</Select.Option>
+                <Select.Option value="">🏷️ Categoría Interna: Todas</Select.Option>
                 {categories.map(c => (
                   <Select.Option key={c.id} value={c.id}>🏷️ {c.name}</Select.Option>
                 ))}
-                <Select.Option value="none">Sin Categoría</Select.Option>
+                <Select.Option value="none">Sin Categoría Interna</Select.Option>
               </Select>
               <Select
                 value={statusFilter}
@@ -652,33 +635,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         </Space>
       </div>
 
-      {selectedRowKeys.length > 0 && (
-        <div style={{ marginBottom: '16px', background: '#f3e8ff', border: '1px solid #d8b4fe', padding: '12px 18px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space>
-            <Tag color="purple" style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
-              {selectedRowKeys.length} invitado(s) seleccionado(s)
-            </Tag>
-            <Text type="secondary" style={{ fontSize: '0.85rem' }}>
-              Puedes asignarles su categoría en lote sin afectar a otros invitados.
-            </Text>
-          </Space>
-          <Button
-            type="primary"
-            icon={<TagOutlined />}
-            onClick={() => setShowBulkCategoryModal(true)}
-            style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed', fontWeight: 'bold' }}
-          >
-            Asignar Categoría Masivamente
-          </Button>
-        </div>
-      )}
-
       <Card bordered={false} style={{ boxShadow: '0 4px 14px rgba(0,0,0,0.05)', borderRadius: '10px' }}>
         <Table
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys)
-          }}
           dataSource={filteredSubmissions.map(i => ({ ...i, key: i.id }))}
           columns={columns}
           loading={loading}
@@ -770,60 +728,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         </Form>
       </Modal>
 
-      {/* Modal Asignar Categoría Masivamente */}
-      <Modal
-        title={
-          <Space>
-            <TagOutlined style={{ color: '#7c3aed', fontSize: '1.3rem' }} />
-            <Title level={4} style={{ margin: 0 }}>Asignar Categoría Masivamente ({selectedRowKeys.length} invitados)</Title>
-          </Space>
-        }
-        open={showBulkCategoryModal}
-        onCancel={() => setShowBulkCategoryModal(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Form form={bulkCategoryForm} layout="vertical" onFinish={handleApplyBulkCategory} style={{ marginTop: '16px' }}>
-          <Alert
-            message="Actualización segura en bloque"
-            description="Esta acción actualizará la categoría de los invitados seleccionados sin duplicar registros ni modificar a sus acompañantes/familiares."
-            type="info"
-            showIcon
-            style={{ marginBottom: '16px' }}
-          />
-
-          <Form.Item name="category_id" label="Seleccionar Categoría Existente">
-            <Select placeholder="Escoja una categoría de la lista..." allowClear>
-              {categories.map(c => (
-                <Select.Option key={c.id} value={c.id}>🏷️ {c.name}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Text type="secondary" style={{ display: 'block', textAlign: 'center', margin: '8px 0', fontSize: '0.82rem' }}>
-            — O bien escriba una nueva categoría —
-          </Text>
-
-          <Form.Item name="category_name" label="Crear Nueva Categoría">
-            <Input placeholder="Ej: Patrocinador Oficial, Prensa, Junta Directiva..." />
-          </Form.Item>
-
-          <div style={{ textAlign: 'right', marginTop: '24px' }}>
-            <Space>
-              <Button onClick={() => setShowBulkCategoryModal(false)}>Cancelar</Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={savingBulkCat}
-                style={{ backgroundColor: '#7c3aed', borderColor: '#7c3aed', fontWeight: 'bold' }}
-              >
-                Aplicar Categoría a Selección
-              </Button>
-            </Space>
-          </div>
-        </Form>
-      </Modal>
-
       {/* Modal Importar Excel / CSV */}
       <Modal
         title={
@@ -851,8 +755,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       >
         <div style={{ margin: '16px 0' }}>
           <Alert
-            message="Desduplicación Inteligente Activada"
-            description="Si el archivo Excel contiene una columna 'Categoría' (o 'Categoria'), se asignará automáticamente. Si un invitado con el mismo Nombre y Correo ya fue registrado previamente, se actualizará únicamente su categoría sin duplicar registros ni alterar a sus familiares/acompañantes."
+            message="Re-importación Segura (Conserva Confirmaciones)"
+            description="Si el archivo Excel contiene la columna 'Categoría', se asignará la Categoría Interna. Si el invitado con el mismo Nombre y Correo ya confirmó o registró su asistencia previamente, su estado de confirmación, QR y acompañantes se mantendrán 100% intactos, asignándole únicamente su Categoría Interna sin duplicar ni borrar registros."
             type="success"
             showIcon
             style={{ marginBottom: '16px' }}

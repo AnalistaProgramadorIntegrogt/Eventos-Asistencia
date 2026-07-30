@@ -229,6 +229,9 @@ export const api = {
           const cleanEmail = (inv.guest_email || inv.email || '').trim().toLowerCase();
           const cleanCode = (inv.code || inv.invitation_code || '').trim().toLowerCase();
 
+          const formCat = inv.additional_data?.categoria || inv.additional_data?.category || inv.additional_data?.tipo || inv.additional_data?.categoria_formulario || '';
+          const internalCat = inv.category_name || (inv.event_categories ? inv.event_categories.name : null);
+
           const invItem = {
             ...inv,
             id: inv.id,
@@ -237,7 +240,9 @@ export const api = {
             email: inv.guest_email || inv.email || '',
             company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
             job_title: inv.job_title || attendeeJob || '',
-            category_name: inv.category_name || (inv.event_categories ? inv.event_categories.name : 'VIP'),
+            category_name: internalCat || 'General',
+            internal_category: internalCat,
+            form_category: formCat,
             is_imported: true,
             status: inv.status || (inv.is_active === false ? 'declined' : 'pending')
           };
@@ -263,6 +268,9 @@ export const api = {
             existing = emailMap.get(subEmail);
           }
 
+          const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
+          const subInternalCat = sub.category_name || (sub.event_categories ? sub.event_categories.name : null);
+
           if (existing) {
             existing.attendee_id = sub.id;
             if (sub.status && sub.status !== 'pending') {
@@ -277,6 +285,13 @@ export const api = {
             if (sub.qr_code) {
               existing.qr_code = sub.qr_code;
             }
+            if (subFormCat) {
+              existing.form_category = subFormCat;
+            }
+            if (subInternalCat && !existing.internal_category) {
+              existing.internal_category = subInternalCat;
+              existing.category_name = subInternalCat;
+            }
           } else {
             if (!combinedMap.has(sub.id) && (!subEmail || !emailMap.has(subEmail))) {
               const newItem = {
@@ -286,7 +301,9 @@ export const api = {
                 email: sub.email || '',
                 company: sub.company || sub.guest_company || sub.empresa || sub.additional_data?.company || sub.additional_data?.empresa || '',
                 job_title: sub.job_title || sub.additional_data?.job_title || sub.additional_data?.cargo || '',
-                category_name: sub.category_name || (sub.event_categories ? sub.event_categories.name : 'General'),
+                category_name: subInternalCat || 'General',
+                internal_category: subInternalCat,
+                form_category: subFormCat,
                 is_imported: false,
                 is_public_registration: true
               };
