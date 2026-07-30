@@ -50,16 +50,37 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       checkins: hourlyCounts[hour]
     }));
 
-    // 4. Asistentes por Categoría
-    const categoryCounts = {};
-    (attendees || []).forEach(a => {
-      const catName = a.event_categories ? a.event_categories.name : 'General / Sin categoría';
-      categoryCounts[catName] = (categoryCounts[catName] || 0) + (a.status === 'checked_in' ? 1 : 0);
+    // 4. Asistentes por Categoría (Total de Invitados vs Asistieron)
+    const { data: allEventCategories } = await supabase
+      .from('event_categories')
+      .select('name')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+
+    const categoryStats = {};
+    (allEventCategories || []).forEach(c => {
+      categoryStats[c.name] = { total: 0, asistieron: 0, pendientes: 0 };
     });
 
-    const categoryChartData = Object.keys(categoryCounts).map(cat => ({
+    (attendees || []).forEach(a => {
+      const catName = a.event_categories ? a.event_categories.name : 'General / Sin categoría';
+      if (!categoryStats[catName]) {
+        categoryStats[catName] = { total: 0, asistieron: 0, pendientes: 0 };
+      }
+      categoryStats[catName].total += 1;
+      if (a.status === 'checked_in') {
+        categoryStats[catName].asistieron += 1;
+      } else {
+        categoryStats[catName].pendientes += 1;
+      }
+    });
+
+    const categoryChartData = Object.keys(categoryStats).map(cat => ({
       name: cat,
-      asistentes: categoryCounts[cat]
+      asistentes: categoryStats[cat].asistieron,
+      total: categoryStats[cat].total,
+      pendientes: categoryStats[cat].pendientes,
+      conversion_pct: categoryStats[cat].total > 0 ? Math.round((categoryStats[cat].asistieron / categoryStats[cat].total) * 100) : 0
     }));
 
     // 5. Ranking de empresas representadas (por confirmados y check-in)

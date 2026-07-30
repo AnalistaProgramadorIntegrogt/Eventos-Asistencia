@@ -27,10 +27,11 @@ const formatInvitationResponse = (invitation) => {
 router.get('/:eventId/invitations', requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { search, includeDeleted, onlyDeleted } = req.query;
+    const { search, category_id, includeDeleted, onlyDeleted } = req.query;
 
     const invitations = await InvitationModel.findByEventId(eventId, {
       search,
+      category_id,
       includeDeleted: includeDeleted === 'true',
       onlyDeleted: onlyDeleted === 'true'
     });
@@ -140,8 +141,27 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
     const categoryMap = new Map((categories || []).map(c => [c.name.toLowerCase(), c.id]));
 
-    // Mapa de datos por índice para luego vincular attendees a sus invitations
-    const guestDataList = [];
+    // Consultar invitaciones existentes en el evento para desduplicación inteligente por Nombre + Correo
+    const { data: existingInvitations } = await supabase
+      .from('invitations')
+      .select('id, guest_name, guest_email, code, category_id')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
+
+    const normalizeStr = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const existingMap = new Map();
+    (existingInvitations || []).forEach(inv => {
+      if (inv.guest_email || inv.guest_name) {
+        const key = `${normalizeStr(inv.guest_name)}|${normalizeStr(inv.guest_email)}`;
+        existingMap.set(key, inv);
+      }
+      if (inv.code) {
+        existingMap.set(inv.code.toLowerCase().trim(), inv);
+      }
+    });
+
+    const itemsToInsert = [];
+    let updatedCount = 0;
 
     for (const g of parsedGuests) {
       let catId = categoryMap.get((g.category || '').toLowerCase());
@@ -160,43 +180,65 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       }
 
       const rawName = g.guest_name || g.name || g.full_name || 'Invitado VIP';
-      const nameParts = rawName.trim().split(' ');
-      const firstName = nameParts[0] || 'Invitado';
-      const lastName = nameParts.slice(1).join(' ') || '';
       const email = g.guest_email || g.email || '';
+      const key = `${normalizeStr(rawName)}|${normalizeStr(email)}`;
+      const existingMatch = existingMap.get(key) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
 
-      guestDataList.push({
-        invitation: {
-          event_id: eventId,
-          guest_name: rawName,
-          guest_email: email,
-          category_id: catId || null,
-          code: g.code || generateUniqueInvitationCode('INV'),
-          is_active: true
-        },
-        attendee: {
-          event_id: eventId,
-          first_name: firstName,
-          last_name: lastName,
-          email: email,
-          company: g.company || '',
-          job_title: g.job_title || '',
-          category_id: catId || null,
-          qr_code: generateUniqueAttendeeCode(),    // Generar un código temporal para cumplir la regla NOT NULL
-          status: 'pending', // Pendiente de registro por formulario
-          is_public_registration: false,
-          additional_data: {}
-        }
-      });
+      if (existingMatch) {
+        // ACTUALIZAR TITULAR EXISTENTE SIN CREAR DUPLICADO
+        await supabase
+          .from('invitations')
+          .update({ category_id: catId || existingMatch.category_id })
+          .eq('id', existingMatch.id);
+
+        const attUpdates = { category_id: catId || existingMatch.category_id };
+        if (g.company) attUpdates.company = g.company;
+        if (g.job_title) attUpdates.job_title = g.job_title;
+
+        await supabase
+          .from('attendees')
+          .update(attUpdates)
+          .eq('invitation_id', existingMatch.id);
+
+        updatedCount++;
+      } else {
+        // NUEVO INVITADO
+        const nameParts = rawName.trim().split(' ');
+        const firstName = nameParts[0] || 'Invitado';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        itemsToInsert.push({
+          invitation: {
+            event_id: eventId,
+            guest_name: rawName,
+            guest_email: email,
+            category_id: catId || null,
+            code: g.code || generateUniqueInvitationCode('INV'),
+            is_active: true
+          },
+          attendee: {
+            event_id: eventId,
+            first_name: firstName,
+            last_name: lastName,
+            email: email,
+            company: g.company || '',
+            job_title: g.job_title || '',
+            category_id: catId || null,
+            qr_code: generateUniqueAttendeeCode(),
+            status: 'pending',
+            is_public_registration: false,
+            additional_data: {}
+          }
+        });
+      }
     }
 
-    // 1. Insertar todas las invitaciones en bloques (chunks) para evitar límites de tamaño por consulta de PostgREST
+    // Insertar nuevas invitaciones en bloques (chunks)
     const allInserted = [];
     const chunkSize = 40;
-    const itemsToInsert = guestDataList.map(g => g.invitation);
 
     for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
-      const chunk = itemsToInsert.slice(i, i + chunkSize);
+      const chunk = itemsToInsert.slice(i, i + chunkSize).map(item => item.invitation);
       const { data: insertedChunk, error: chunkError } = await supabase
         .from('invitations')
         .insert(chunk)
@@ -208,27 +250,89 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       }
     }
 
-    // 2. Insertar los asistentes correspondientes para mantener vinculadas la empresa y el cargo
+    // Insertar asistentes correspondientes para las nuevas invitaciones
     if (allInserted && allInserted.length > 0) {
-      const attendeesToInsert = allInserted.map((inv, idx) => ({
-        ...guestDataList[idx].attendee,
+      const newAttendeesToInsert = allInserted.map((inv, idx) => ({
+        ...itemsToInsert[idx].attendee,
         invitation_id: inv.id
       }));
 
-      for (let i = 0; i < attendeesToInsert.length; i += chunkSize) {
-        const chunk = attendeesToInsert.slice(i, i + chunkSize);
+      for (let i = 0; i < newAttendeesToInsert.length; i += chunkSize) {
+        const chunk = newAttendeesToInsert.slice(i, i + chunkSize);
         await supabase
           .from('attendees')
           .insert(chunk);
       }
     }
 
-    const formattedData = (allInserted || []).map(formatInvitationResponse);
+    const totalProcessed = updatedCount + allInserted.length;
+    res.json({
+      success: true,
+      message: `Proceso completado: ${updatedCount} invitado(s) actualizados y ${allInserted.length} nuevos creado(s).`,
+      count: totalProcessed,
+      updated_count: updatedCount,
+      created_count: allInserted.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/events/:eventId/invitations/bulk-category - Asignación masiva de categoría a invitados seleccionados
+router.post('/:eventId/invitations/bulk-category', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST', 'IMPORT_GUESTS_EXCEL']), async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { invitation_ids, category_id, category_name } = req.body;
+
+    if (!Array.isArray(invitation_ids) || invitation_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'Debe seleccionar al menos un invitado.' });
+    }
+
+    let finalCategoryId = category_id || null;
+
+    if (!finalCategoryId && category_name && category_name.trim()) {
+      const trimmedCatName = category_name.trim();
+      const { data: existingCat } = await supabase
+        .from('event_categories')
+        .select('*')
+        .eq('event_id', eventId)
+        .ilike('name', trimmedCatName)
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (existingCat) {
+        finalCategoryId = existingCat.id;
+      } else {
+        const { data: newCat } = await supabase
+          .from('event_categories')
+          .insert([{ event_id: eventId, name: trimmedCatName }])
+          .select()
+          .single();
+        if (newCat) finalCategoryId = newCat.id;
+      }
+    }
+
+    // Actualizar categoría en invitaciones
+    const { error: invErr } = await supabase
+      .from('invitations')
+      .update({ category_id: finalCategoryId })
+      .in('id', invitation_ids)
+      .eq('event_id', eventId);
+
+    if (invErr) throw invErr;
+
+    // Actualizar categoría en asistentes vinculados
+    await supabase
+      .from('attendees')
+      .update({ category_id: finalCategoryId })
+      .in('invitation_id', invitation_ids)
+      .eq('event_id', eventId);
 
     res.json({
       success: true,
-      message: `Se importaron ${formattedData.length} invitaciones correctamente.`,
-      data: formattedData
+      message: `Categoría asignada a ${invitation_ids.length} invitado(s) correctamente.`,
+      updated_count: invitation_ids.length,
+      category_id: finalCategoryId
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -267,6 +371,7 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
       if (guest_email !== undefined) attUpdates.email = guest_email;
       if (company !== undefined) attUpdates.company = company;
       if (job_title !== undefined) attUpdates.job_title = job_title;
+      if (category_id !== undefined) attUpdates.category_id = category_id;
       if (phone !== undefined) {
         attUpdates.additional_data = { ...(existingAttendee.additional_data || {}), phone };
         attUpdates.phone = phone;

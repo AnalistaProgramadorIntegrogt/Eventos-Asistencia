@@ -5,7 +5,7 @@ export const InvitationModel = {
   /**
    * Listar invitaciones por Evento
    */
-  async findByEventId(eventId, { search, includeDeleted = false, onlyDeleted = false } = {}) {
+  async findByEventId(eventId, { search, category_id, includeDeleted = false, onlyDeleted = false } = {}) {
     let query = supabase
       .from('invitations')
       .select('*, event_categories(name), attendees(company, job_title)')
@@ -16,6 +16,10 @@ export const InvitationModel = {
       query = query.not('deleted_at', 'is', null);
     } else if (!includeDeleted) {
       query = query.is('deleted_at', null);
+    }
+
+    if (category_id) {
+      query = query.eq('category_id', category_id);
     }
 
     if (search) {

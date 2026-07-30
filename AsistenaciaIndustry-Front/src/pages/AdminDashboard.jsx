@@ -218,7 +218,7 @@ export default function AdminDashboard({ selectedEventId }) {
             title={
               <Space>
                 <BarChartOutlined style={{ color: '#c3302d' }} />
-                <span>Asistentes por Categoría</span>
+                <span>Asistentes e Invitados por Categoría</span>
               </Space>
             }
             bordered={false}
@@ -228,12 +228,21 @@ export default function AdminDashboard({ selectedEventId }) {
               <Text type="secondary">Sin registros por categoría aún.</Text>
             ) : (
               categoryData.map((cat, idx) => {
-                const pct = metrics.asistieron > 0 ? Math.round((cat.asistentes / metrics.asistieron) * 100) : 0;
+                const totalInCat = cat.total || 0;
+                const attendedInCat = cat.asistentes || 0;
+                const pct = totalInCat > 0 ? Math.round((attendedInCat / totalInCat) * 100) : (cat.conversion_pct || 0);
                 return (
-                  <div key={idx} style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <div key={idx} style={{ marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
                       <Text strong>{cat.name}</Text>
-                      <Text strong style={{ color: '#c3302d' }}>{cat.asistentes} ({pct}%)</Text>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: '0.82rem' }}>
+                          {attendedInCat} asistieron {totalInCat > 0 ? `de ${totalInCat} invitados` : ''}
+                        </Text>
+                        <Tag color={pct >= 50 ? 'green' : 'volcano'} style={{ fontWeight: 'bold', margin: 0 }}>
+                          {pct}%
+                        </Tag>
+                      </Space>
                     </div>
                     <Progress percent={pct} strokeColor="#c3302d" showInfo={false} />
                   </div>

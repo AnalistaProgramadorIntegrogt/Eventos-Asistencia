@@ -173,7 +173,9 @@ export const api = {
     delete: (id) => request(`/events/${id}`, { method: 'DELETE' }),
     getEmailConfig: (eventId) => request(`/events/${eventId}/email-config`),
     updateEmailConfig: (eventId, configData) => request(`/events/${eventId}/email-config`, { method: 'PUT', body: JSON.stringify(configData) }),
-    resetEmailConfig: (eventId) => request(`/events/${eventId}/email-config/reset`, { method: 'POST' })
+    resetEmailConfig: (eventId) => request(`/events/${eventId}/email-config/reset`, { method: 'POST' }),
+    getCategories: (eventId) => request(`/events/${eventId}/categories`),
+    createCategory: (eventId, name) => request(`/events/${eventId}/categories`, { method: 'POST', body: JSON.stringify({ name }) })
   },
 
   // 4. Attendees CRUD Endpoints
@@ -331,6 +333,10 @@ export const api = {
       });
     },
     importCSV: (eventId, file) => api.invitations.importExcel(eventId, file),
+    bulkUpdateCategory: (eventId, invitationIds, categoryId, categoryName) => request(`/events/${eventId}/invitations/bulk-category`, {
+      method: 'POST',
+      body: JSON.stringify({ invitation_ids: invitationIds, category_id: categoryId, category_name: categoryName })
+    }),
     toggle: (id, is_active) => request(`/events/invitations/${id}/toggle`, { method: 'PUT', body: JSON.stringify({ is_active }) }),
     regenerate: (id) => request(`/events/invitations/${id}/regenerate`, { method: 'POST' })
   },
