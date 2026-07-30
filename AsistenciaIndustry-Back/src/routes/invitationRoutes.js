@@ -150,10 +150,21 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
     const normalizeStr = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
     const existingMap = new Map();
+    const existingNameMap = new Map();
+
     (existingInvitations || []).forEach(inv => {
-      if (inv.guest_email || inv.guest_name) {
-        const key = `${normalizeStr(inv.guest_name)}|${normalizeStr(inv.guest_email)}`;
+      const normName = normalizeStr(inv.guest_name);
+      const normEmail = normalizeStr(inv.guest_email);
+      if (normName || normEmail) {
+        const key = `${normName}|${normEmail}`;
         existingMap.set(key, inv);
+      }
+      if (normName) {
+        if (!existingNameMap.has(normName)) {
+          existingNameMap.set(normName, [inv]);
+        } else {
+          existingNameMap.get(normName).push(inv);
+        }
       }
       if (inv.code) {
         existingMap.set(inv.code.toLowerCase().trim(), inv);
@@ -181,8 +192,19 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
       const rawName = g.guest_name || g.name || g.full_name || 'Invitado VIP';
       const email = g.guest_email || g.email || '';
-      const key = `${normalizeStr(rawName)}|${normalizeStr(email)}`;
-      const existingMatch = existingMap.get(key) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
+      const normName = normalizeStr(rawName);
+      const normEmail = normalizeStr(email);
+      const key = `${normName}|${normEmail}`;
+
+      let existingMatch = existingMap.get(key) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
+
+      // FALLBACK CUANDO LA FILA DEL EXCEL NO CONTIENE CORREO:
+      if (!existingMatch && !email && normName) {
+        const nameMatches = existingNameMap.get(normName);
+        if (nameMatches && nameMatches.length === 1) {
+          existingMatch = nameMatches[0];
+        }
+      }
 
       if (existingMatch) {
         // ACTUALIZAR TITULAR EXISTENTE SIN CREAR DUPLICADO
