@@ -141,10 +141,10 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
     const categoryMap = new Map((categories || []).map(c => [c.name.toLowerCase(), c.id]));
 
-    // Consultar invitaciones existentes en el evento para desduplicación inteligente por Nombre + Correo
+    // Consultar invitaciones existentes en el evento para desduplicación inteligente por Nombre + Correo (+ Empresa)
     const { data: existingInvitations } = await supabase
       .from('invitations')
-      .select('id, guest_name, guest_email, code, category_id')
+      .select('id, guest_name, guest_email, code, category_id, attendees(company)')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
@@ -155,9 +155,14 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
     (existingInvitations || []).forEach(inv => {
       const normName = normalizeStr(inv.guest_name);
       const normEmail = normalizeStr(inv.guest_email);
+      const attComp = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.company : (inv.attendees?.company || '');
+      const normComp = normalizeStr(attComp);
+
       if (normName || normEmail) {
-        const key = `${normName}|${normEmail}`;
-        existingMap.set(key, inv);
+        if (normComp) {
+          existingMap.set(`${normName}|${normEmail}|${normComp}`, inv);
+        }
+        existingMap.set(`${normName}|${normEmail}`, inv);
       }
       if (normName) {
         if (!existingNameMap.has(normName)) {
@@ -192,11 +197,19 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
 
       const rawName = g.guest_name || g.name || g.full_name || 'Invitado VIP';
       const email = g.guest_email || g.email || '';
+      const company = g.company || '';
       const normName = normalizeStr(rawName);
       const normEmail = normalizeStr(email);
-      const key = `${normName}|${normEmail}`;
+      const normComp = normalizeStr(company);
 
-      let existingMatch = existingMap.get(key) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
+      let existingMatch = null;
+      if (normComp) {
+        existingMatch = existingMap.get(`${normName}|${normEmail}|${normComp}`);
+      }
+
+      if (!existingMatch) {
+        existingMatch = existingMap.get(`${normName}|${normEmail}`) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
+      }
 
       // FALLBACK CUANDO LA FILA DEL EXCEL NO CONTIENE CORREO:
       if (!existingMatch && !email && normName) {

@@ -166,10 +166,15 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       const targetFile = fileList[0].originFileObj || fileList[0];
       const res = await api.invitations.importCSV(selectedEventId, targetFile);
       if (res.success !== false) {
-        message.success(`Se importaron ${res.data?.count || res.imported_count || (res.data ? res.data.length : 0)} registrados exitosamente.`);
+        const updateCount = res.updated_count ?? 0;
+        const createCount = res.created_count ?? 0;
+        const totalCount = res.count ?? (res.data?.count || res.imported_count || (updateCount + createCount));
+
+        message.success(res.message || `Proceso completado: ${updateCount} invitado(s) actualizados y ${createCount} nuevos creado(s).`);
         setShowImportModal(false);
         setFileList([]);
-        fetchSubmissions(false);
+        await fetchCategories();
+        await fetchSubmissions(false);
       } else {
         message.error('Error al importar: ' + (res.error || 'Verifique el formato del archivo.'));
       }
@@ -350,17 +355,13 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       title: 'Categoría Interna',
       key: 'internal_category',
       render: (_, record) => {
-        const rawCatName = record.internal_category || (record.event_categories ? record.event_categories.name : null);
-        if (!rawCatName) {
-          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        const rawCatName = record.internal_category || record.category_name || (record.event_categories ? record.event_categories.name : null);
+        if (!rawCatName || isGenericCat(rawCatName)) {
+          return <Tag color="default" style={{ borderRadius: '4px' }}>Sin Categoría</Tag>;
         }
-        // Verificar si coincide con una categoría interna real configurada
-        const matchObj = categories.find(c => c.id === record.category_id || c.name.toLowerCase() === rawCatName.toLowerCase());
-        const displayCat = matchObj ? matchObj.name : rawCatName;
-
         return (
           <Tag color="purple" icon={<TagOutlined />} style={{ fontWeight: 'bold', borderRadius: '4px' }}>
-            {displayCat}
+            {rawCatName}
           </Tag>
         );
       }

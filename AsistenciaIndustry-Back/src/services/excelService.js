@@ -68,7 +68,16 @@ export function parseGuestsFromExcelBuffer(buffer) {
     }
 
     // 3. Detectar Categoría Interna
-    const category = normalizedRow['categoria'] || normalizedRow['categoria interna'] || normalizedRow['category'] || normalizedRow['tipo'] || normalizedRow['category_name'] || '';
+    let category = normalizedRow['categoria'] || normalizedRow['categorias'] || normalizedRow['categoria interna'] || normalizedRow['categoria de invitado'] || normalizedRow['tipo de invitado'] || normalizedRow['category'] || normalizedRow['tipo'] || normalizedRow['category_name'] || '';
+
+    if (!category) {
+      for (const [k, v] of Object.entries(normalizedRow)) {
+        if ((k.includes('categor') || k.includes('tipo')) && v && typeof v === 'string') {
+          category = v.trim();
+          break;
+        }
+      }
+    }
 
     // 4. Detectar Empresa / Cargo (opcionales)
     const company = normalizedRow['empresa'] || normalizedRow['company'] || normalizedRow['organizacion'] || '';

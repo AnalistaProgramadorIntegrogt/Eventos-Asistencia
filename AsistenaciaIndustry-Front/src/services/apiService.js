@@ -250,7 +250,6 @@ export const api = {
           combinedMap.set(inv.id, invItem);
           invitationIdMap.set(inv.id, invItem);
           if (cleanCode) codeMap.set(cleanCode, invItem);
-          if (cleanEmail) emailMap.set(cleanEmail, invItem);
         });
 
         // 2. Procesar formSubmissions (attendees) y fusionar con invitaciones sin duplicar
@@ -264,8 +263,6 @@ export const api = {
             existing = invitationIdMap.get(subInvId);
           } else if (subCode && codeMap.has(subCode)) {
             existing = codeMap.get(subCode);
-          } else if (subEmail && emailMap.has(subEmail)) {
-            existing = emailMap.get(subEmail);
           }
 
           const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
@@ -288,12 +285,18 @@ export const api = {
             if (subFormCat) {
               existing.form_category = subFormCat;
             }
-            if (subInternalCat && !existing.internal_category) {
-              existing.internal_category = subInternalCat;
-              existing.category_name = subInternalCat;
+            if (subInternalCat) {
+              existing.internal_category = existing.internal_category || subInternalCat;
+              existing.category_name = existing.category_name || subInternalCat;
+            }
+            if (sub.category_id && !existing.category_id) {
+              existing.category_id = sub.category_id;
+            }
+            if (sub.event_categories && !existing.event_categories) {
+              existing.event_categories = sub.event_categories;
             }
           } else {
-            if (!combinedMap.has(sub.id) && (!subEmail || !emailMap.has(subEmail))) {
+            if (!combinedMap.has(sub.id)) {
               const newItem = {
                 ...sub,
                 id: sub.id,
@@ -308,7 +311,6 @@ export const api = {
                 is_public_registration: true
               };
               combinedMap.set(sub.id, newItem);
-              if (subEmail) emailMap.set(subEmail, newItem);
             }
           }
         });
