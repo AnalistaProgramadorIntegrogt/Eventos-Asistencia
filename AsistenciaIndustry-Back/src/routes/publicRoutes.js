@@ -529,7 +529,7 @@ router.post('/events/:id/checkin', async (req, res) => {
           email: attendee.email,
           company: attendee.company,
           job_title: attendee.job_title,
-          category_name: attendee.event_categories ? attendee.event_categories.name : 'General',
+          category_name: attendee.event_categories ? attendee.event_categories.name : null,
           check_in_time: existingCheckin ? existingCheckin.checked_in_at : null
         }
       });
@@ -582,7 +582,7 @@ router.post('/events/:id/checkin', async (req, res) => {
         email: updatedAttendee.email,
         company: updatedAttendee.company,
         job_title: updatedAttendee.job_title,
-        category_name: updatedAttendee.event_categories ? updatedAttendee.event_categories.name : 'General',
+        category_name: updatedAttendee.event_categories ? updatedAttendee.event_categories.name : null,
         check_in_time: checkInTimestamp
       }
     });

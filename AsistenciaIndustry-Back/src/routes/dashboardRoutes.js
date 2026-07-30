@@ -50,28 +50,38 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       checkins: hourlyCounts[hour]
     }));
 
-    // 4. Asistentes por Categoría (Total de Invitados vs Asistieron)
+    // 4. Asistentes por Categoría Interna (Total de Invitados vs Asistieron)
     const { data: allEventCategories } = await supabase
       .from('event_categories')
       .select('name')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
+    const isGenericCat = (name) => {
+      if (!name) return true;
+      const n = name.trim().toLowerCase();
+      return n === 'vip' || n === 'general' || n.includes('sin categor') || n.includes('general /');
+    };
+
     const categoryStats = {};
     (allEventCategories || []).forEach(c => {
-      categoryStats[c.name] = { total: 0, asistieron: 0, pendientes: 0 };
+      if (c.name && !isGenericCat(c.name)) {
+        categoryStats[c.name] = { total: 0, asistieron: 0, pendientes: 0 };
+      }
     });
 
     (attendees || []).forEach(a => {
-      const catName = a.event_categories ? a.event_categories.name : 'General / Sin categoría';
-      if (!categoryStats[catName]) {
-        categoryStats[catName] = { total: 0, asistieron: 0, pendientes: 0 };
-      }
-      categoryStats[catName].total += 1;
-      if (a.status === 'checked_in') {
-        categoryStats[catName].asistieron += 1;
-      } else {
-        categoryStats[catName].pendientes += 1;
+      const catName = a.event_categories?.name;
+      if (catName && !isGenericCat(catName)) {
+        if (!categoryStats[catName]) {
+          categoryStats[catName] = { total: 0, asistieron: 0, pendientes: 0 };
+        }
+        categoryStats[catName].total += 1;
+        if (a.status === 'checked_in') {
+          categoryStats[catName].asistieron += 1;
+        } else {
+          categoryStats[catName].pendientes += 1;
+        }
       }
     });
 

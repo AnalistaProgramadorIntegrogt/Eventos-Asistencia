@@ -81,7 +81,7 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
           company: attendee.company,
           job_title: attendee.job_title,
           event_name: eventName,
-          category_name: attendee.event_categories ? attendee.event_categories.name : 'General',
+          category_name: attendee.event_categories ? attendee.event_categories.name : null,
           checked_in_at: existingCheckin ? existingCheckin.checked_in_at : null
         }
       });
@@ -132,7 +132,7 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
         company: attendee.company,
         job_title: attendee.job_title,
         event_name: eventName,
-        category_name: attendee.event_categories ? attendee.event_categories.name : 'General',
+        category_name: attendee.event_categories ? attendee.event_categories.name : null,
         checked_in_at: newCheckin.checked_in_at
       }
     });

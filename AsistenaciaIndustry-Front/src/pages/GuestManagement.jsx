@@ -51,12 +51,20 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
+  const isGenericCat = (name) => {
+    if (!name) return true;
+    const n = name.trim().toLowerCase();
+    return n === 'vip' || n === 'general' || n.includes('sin categor') || n.includes('general /');
+  };
+
   const fetchCategories = async () => {
     if (!selectedEventId) return;
     try {
       const res = await api.events.getCategories(selectedEventId);
-      if (res && Array.isArray(res)) setCategories(res);
-      else if (res && res.data && Array.isArray(res.data)) setCategories(res.data);
+      let list = [];
+      if (res && Array.isArray(res)) list = res;
+      else if (res && res.data && Array.isArray(res.data)) list = res.data;
+      setCategories(list.filter(c => c && c.name && !isGenericCat(c.name)));
     } catch (e) {
       console.error('Error cargando categorías:', e);
     }
