@@ -361,7 +361,8 @@ export default function AdminDashboard({ selectedEventId }) {
         <Table
           dataSource={auditLogs.map(item => ({ ...item, key: item.id }))}
           columns={auditColumns}
-          pagination={{ pageSize: 5 }}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 5, responsive: true }}
           locale={{ emptyText: 'No hay registros de auditoría almacenados' }}
         />
       </Card>

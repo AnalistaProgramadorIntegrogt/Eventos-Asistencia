@@ -738,31 +738,33 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       <div style={{ marginBottom: '16px', background: '#f8fafc', padding: '12px 16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
         <Space direction="vertical" style={{ width: '100%' }} size="small">
           <Text strong style={{ fontSize: '0.82rem', color: '#475569' }}>Filtrar División de Asistentes:</Text>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <Segmented
-              size="middle"
-              options={[
-                { label: `Todos los Invitados (${submissions.length})`, value: 'all' },
-                { label: `Invitados VIP por Excel (${vipTotal})`, value: 'vip' },
-                { label: `Registros Web Públicos (${publicTotal})`, value: 'public' }
-              ]}
-              value={typeFilter}
-              onChange={setTypeFilter}
-            />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', width: '100%' }}>
+            <div style={{ maxWidth: '100%', overflowX: 'auto' }}>
+              <Segmented
+                size="middle"
+                options={[
+                  { label: `Todos los Invitados (${submissions.length})`, value: 'all' },
+                  { label: `Invitados VIP por Excel (${vipTotal})`, value: 'vip' },
+                  { label: `Registros Web Públicos (${publicTotal})`, value: 'public' }
+                ]}
+                value={typeFilter}
+                onChange={setTypeFilter}
+              />
+            </div>
 
-            <Space wrap>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', width: '100%', maxWidth: '100%' }}>
               <Input
                 placeholder="Buscar por nombre, correo, empresa..."
                 prefix={<SearchOutlined style={{ color: '#89888a' }} />}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ width: '240px' }}
+                style={{ flex: '1 1 200px', minWidth: '160px' }}
                 allowClear
               />
               <Select
                 value={categoryFilter}
                 onChange={setCategoryFilter}
-                style={{ width: '220px' }}
+                style={{ flex: '1 1 180px', minWidth: '150px' }}
                 placeholder="Filtrar por Categoría Interna"
               >
                 <Select.Option value="">🏷️ Categoría Interna: Todas</Select.Option>
@@ -774,7 +776,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               <Select
                 value={statusFilter}
                 onChange={setStatusFilter}
-                style={{ width: '170px' }}
+                style={{ flex: '1 1 160px', minWidth: '140px' }}
               >
                 <Select.Option value="">Todos los Estados</Select.Option>
                 <Select.Option value="confirmed">Registrados / Confirmados</Select.Option>
@@ -784,7 +786,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               <Button icon={<ReloadOutlined />} onClick={() => { fetchCategories(); fetchSubmissions(false); }}>
                 Refrescar
               </Button>
-            </Space>
+            </div>
           </div>
         </Space>
       </div>
@@ -794,7 +796,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           dataSource={filteredSubmissions.map(i => ({ ...i, key: i.id }))}
           columns={columns}
           loading={loading}
-          pagination={{ pageSize: 10 }}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: 10, responsive: true }}
         />
       </Card>
 
