@@ -131,9 +131,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       return res.status(400).json({ success: false, error: 'No se subió ningún archivo' });
     }
 
-    const parsedGuests = parseGuestsFromExcelBuffer(req.file.buffer);
-
-    // Obtener las categorías existentes del evento para asociarlas
+    // CORRECCIÓN: parsear el archivo UNA sola vez (antes se parseaba 2 veces)
     const guests = parseGuestsFromExcelBuffer(req.file.buffer);
 
     const { data: categories } = await supabase
@@ -156,7 +154,14 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
-    const normalizeStr = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    // Normaliza quitando acentos, espacios extras y convirtiendo a minúsculas
+    const normalizeStr = (s) => (s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
+
     const existingMap = new Map();
     const existingEmailMap = new Map();
     const existingNameMap = new Map();
@@ -179,6 +184,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       if (normEmail && normName) {
         existingMap.set(`${normName}|${normEmail}`, inv);
       }
+      // Sin email: indexar solo por nombre para detección posterior
       if (normEmail && !existingEmailMap.has(normEmail)) {
         existingEmailMap.set(normEmail, inv);
       }
@@ -227,20 +233,7 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
     const itemsToInsert = [];
 
     for (const g of guests) {
-      let catId = categoryMap.get((g.category || '').toLowerCase());
-
-      if (!catId && g.category) {
-        const { data: newCat } = await supabase
-          .from('event_categories')
-          .insert([{ event_id: eventId, name: g.category }])
-          .select()
-          .single();
-        if (newCat) {
-          catId = newCat.id;
-          categoryMap.set(g.category.toLowerCase(), catId);
-        }
-      }
-
+      // Normalizar también el nombre del invitado del Excel para comparar correctamente
       const rawName = g.guest_name || g.name || g.full_name || 'Invitado VIP';
       const email = g.guest_email || g.email || '';
       const company = g.company || '';
@@ -248,31 +241,70 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
       const normEmail = normalizeStr(email);
       const normComp = normalizeStr(company);
 
+      let catId = categoryMap.get(normalizeStr(g.category || ''));
+
+      if (!catId && g.category) {
+        // Verificar si ya existe una categoría con nombre similar (con/sin acentos)
+        const existingCatEntry = Array.from(categoryMap.entries()).find(
+          ([key]) => normalizeStr(key) === normalizeStr(g.category)
+        );
+        if (existingCatEntry) {
+          catId = existingCatEntry[1];
+        } else {
+          const { data: newCat } = await supabase
+            .from('event_categories')
+            .insert([{ event_id: eventId, name: g.category }])
+            .select()
+            .single();
+          if (newCat) {
+            catId = newCat.id;
+            categoryMap.set(g.category.toLowerCase(), catId);
+          }
+        }
+      }
+
       let existingMatch = null;
+
+      // 1. Match exacto por nombre + email + empresa
       if (normComp) {
         existingMatch = existingMap.get(`${normName}|${normEmail}|${normComp}`);
       }
 
+      // 2. Match por nombre + email
       if (!existingMatch) {
         existingMatch = existingMap.get(`${normName}|${normEmail}`) || (g.code ? existingMap.get(g.code.toLowerCase().trim()) : null);
       }
 
+      // 3. Match por email solo (mismo email = mismo invitado, aunque cambie el nombre)
       if (!existingMatch && normEmail) {
         existingMatch = existingEmailMap.get(normEmail);
       }
 
+      // 4. Match por nombre solo SI no tiene email Y existe exactamente 1 con ese nombre
+      //    O si tienen el mismo nombre y misma categoría (re-carga del mismo Excel)
       if (!existingMatch && !email && normName) {
         const nameMatches = existingNameMap.get(normName);
         if (nameMatches && nameMatches.length === 1) {
           existingMatch = nameMatches[0];
+        } else if (nameMatches && nameMatches.length > 1 && catId) {
+          // Hay múltiples con ese nombre: buscar el que tenga la misma categoría
+          const sameCatMatch = nameMatches.find(m => m.category_id === catId);
+          if (sameCatMatch) existingMatch = sameCatMatch;
+          else existingMatch = nameMatches[0]; // fallback: el más antiguo
         }
       }
 
       if (existingMatch) {
-        if (existingMatch.id && !existingMatch.attendee_id) {
+        // Siempre actualizar la categoría en la invitación (incluso si tiene attendee)
+        if (existingMatch.id && catId) {
+          const invUpdatePayload = { category_id: catId };
+          // Si el Excel tiene email y la invitación existente no, también lo actualizamos
+          if (email && !existingMatch.guest_email) {
+            invUpdatePayload.guest_email = email;
+          }
           await supabase
             .from('invitations')
-            .update({ category_id: catId || existingMatch.category_id })
+            .update(invUpdatePayload)
             .eq('id', existingMatch.id);
         }
 
@@ -280,10 +312,13 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
           ? (existingMatch.attendees[0]?.additional_data || {})
           : (existingMatch.additional_data || {});
 
-        const attUpdates = { category_id: catId || existingMatch.category_id };
+        const attUpdates = {};
+        if (catId) attUpdates.category_id = catId;
         if (g.company) attUpdates.company = g.company;
         if (g.job_title) attUpdates.job_title = g.job_title;
+        if (email) attUpdates.email = email;
         if (g.phone) {
+          attUpdates.phone = g.phone;
           attUpdates.additional_data = {
             ...existingAttData,
             phone: g.phone,
@@ -291,11 +326,27 @@ router.post('/:eventId/invitations/import', requirePermission('IMPORT_GUESTS_EXC
           };
         }
 
-        if (existingMatch.id) {
-          await supabase
-            .from('attendees')
-            .update(attUpdates)
-            .or(`invitation_id.eq.${existingMatch.id},id.eq.${existingMatch.attendee_id || existingMatch.id}`);
+        if (existingMatch.id && Object.keys(attUpdates).length > 0) {
+          try {
+            const { error: attUpdErr } = await supabase
+              .from('attendees')
+              .update(attUpdates)
+              .or(`invitation_id.eq.${existingMatch.id},id.eq.${existingMatch.attendee_id || existingMatch.id}`);
+            if (attUpdErr) {
+              // Si falla por columna phone inexistente, reintentar sin ella
+              delete attUpdates.phone;
+              await supabase
+                .from('attendees')
+                .update(attUpdates)
+                .or(`invitation_id.eq.${existingMatch.id},id.eq.${existingMatch.attendee_id || existingMatch.id}`);
+            }
+          } catch (attE) {
+            delete attUpdates.phone;
+            await supabase
+              .from('attendees')
+              .update(attUpdates)
+              .or(`invitation_id.eq.${existingMatch.id},id.eq.${existingMatch.attendee_id || existingMatch.id}`);
+          }
         }
 
         updatedCount++;
