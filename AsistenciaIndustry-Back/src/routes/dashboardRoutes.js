@@ -9,17 +9,19 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
   try {
     const { eventId } = req.params;
 
-    // 1. Conteo de Invitados (invitaciones creadas)
+    // 1. Conteo de Invitados (invitaciones activas creadas — excluir eliminados)
     const { count: totalInvitations } = await supabase
       .from('invitations')
       .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
-    // 2. Todos los asistentes del evento
+    // 2. Todos los asistentes ACTIVOS del evento (excluir eliminados)
     const { data: attendees, error: attError } = await supabase
       .from('attendees')
       .select('*, event_categories(name)')
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
     if (attError) throw attError;
 
@@ -51,9 +53,11 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
     }));
 
     // 4. Confirmaciones y Preregistros por Categoría Interna
+    //    Fuente: invitaciones VIP (tienen category_id asignado al importar Excel)
+    //    + attendees de registro web público (is_public_registration=true)
     const { data: allEventCategories } = await supabase
       .from('event_categories')
-      .select('name')
+      .select('id, name')
       .eq('event_id', eventId)
       .is('deleted_at', null);
 
@@ -62,6 +66,14 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       const n = name.trim().toLowerCase();
       return n === 'vip' || n === 'general' || n.includes('sin categor') || n.includes('general /');
     };
+
+    // Obtener invitaciones activas con su categoría (fuente principal para VIPs)
+    // NOTA: invitations no tiene columna "status", solo "is_active"
+    const { data: activeInvitations } = await supabase
+      .from('invitations')
+      .select('id, category_id, is_active, event_categories(name)')
+      .eq('event_id', eventId)
+      .is('deleted_at', null);
 
     const categoryStats = {};
     (allEventCategories || []).forEach(c => {
@@ -72,9 +84,12 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     let noCatStats = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
 
-    (attendees || []).forEach(a => {
-      const catName = a.event_categories?.name;
-      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in';
+    // Procesar invitaciones VIP para estadísticas de categoría
+    // is_active=true → invitado registrado/confirmado | is_active=false o null → pendiente
+    (activeInvitations || []).forEach(inv => {
+      const catName = inv.event_categories?.name;
+      const isConfirmed = inv.is_active === true;
+      const isCheckedIn = false; // check-in real viene de attendees
 
       if (catName && !isGenericCat(catName)) {
         if (!categoryStats[catName]) {
@@ -86,23 +101,29 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
         } else {
           categoryStats[catName].pendientes += 1;
         }
-        if (a.status === 'checked_in') {
-          categoryStats[catName].asistieron += 1;
-        }
+        if (isCheckedIn) categoryStats[catName].asistieron += 1;
       } else {
         noCatStats.total += 1;
-        if (isConfirmed) {
-          noCatStats.confirmados += 1;
-        } else {
-          noCatStats.pendientes += 1;
-        }
-        if (a.status === 'checked_in') {
-          noCatStats.asistieron += 1;
-        }
+        if (isConfirmed) noCatStats.confirmados += 1;
+        else noCatStats.pendientes += 1;
+        if (isCheckedIn) noCatStats.asistieron += 1;
       }
     });
 
-    const totalAllGuests = (attendees || []).length;
+    // Procesar attendees de registro web PÚBLICO (is_public_registration=true)
+    // para estadísticas de check-in y confirmación reales
+    (attendees || []).filter(a => a.is_public_registration === true).forEach(a => {
+      const catName = a.event_categories?.name;
+      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in';
+      // Solo actualizar los contadores de asistidos (no duplicar totales)
+      if (catName && !isGenericCat(catName) && categoryStats[catName]) {
+        if (a.status === 'checked_in') categoryStats[catName].asistieron += 1;
+      }
+    });
+
+    // Total = invitaciones activas (fuente de verdad del listado de invitados)
+    const totalAllGuests = (activeInvitations || []).length;
+
 
     const categoryChartData = Object.keys(categoryStats).map(cat => {
       const tot = categoryStats[cat].total;
