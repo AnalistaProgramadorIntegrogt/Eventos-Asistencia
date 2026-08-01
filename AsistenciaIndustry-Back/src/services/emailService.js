@@ -73,7 +73,8 @@ function normalizeEmailConfig(emailConfig, formConfig) {
 export async function sendQRTicketEmail({ to, attendeeName, eventName, location, startDate, logoUrl, bannerUrl, qrCode, qrDataUrl, emailConfig, formConfig }) {
   const transporter = getTransporter();
 
-  const dateFormatted = startDate ? new Date(startDate).toLocaleDateString('es-ES', {
+  const cleanDate = startDate ? startDate.split('.')[0].replace('Z', '').split('+')[0].replace(/-/g, '/').replace('T', ' ') : null;
+  const dateFormatted = cleanDate ? new Date(cleanDate).toLocaleDateString('es-ES', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

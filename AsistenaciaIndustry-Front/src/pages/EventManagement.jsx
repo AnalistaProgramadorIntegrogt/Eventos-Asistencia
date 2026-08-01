@@ -23,8 +23,18 @@ const { Option } = Select;
 // Helper: format date for display
 const fmtDate = (d) => {
   if (!d) return '—';
-  const cleanD = d.endsWith('Z') || d.includes('+') ? d : d.replace(/-/g, '/').replace('T', ' ');
+  const cleanD = d.split('.')[0].replace('Z', '').split('+')[0].replace(/-/g, '/').replace('T', ' ');
   return new Date(cleanD).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+};
+
+// Helper: Convert to YYYY-MM-DDTHH:mm for datetime-local input
+const toLocalInputFormat = (dStr) => {
+  if (!dStr) return '';
+  const cleanD = dStr.split('.')[0].replace('Z', '').split('+')[0].replace(/-/g, '/').replace('T', ' ');
+  const d = new Date(cleanD);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 export default function EventManagement({ selectedEventId, setSelectedEventId }) {
@@ -91,8 +101,8 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
     form.setFieldsValue({
       name: evt.name,
       description: evt.description || '',
-      start_date: evt.start_date ? evt.start_date.slice(0, 16) : '',
-      end_date: evt.end_date ? evt.end_date.slice(0, 16) : '',
+      start_date: toLocalInputFormat(evt.start_date),
+      end_date: toLocalInputFormat(evt.end_date),
       location: evt.location || '',
       banner_url: evt.banner_url || '',
       logo_url: evt.logo_url || '',
@@ -109,7 +119,7 @@ export default function EventManagement({ selectedEventId, setSelectedEventId })
       const payload = {
         name: values.name,
         description: values.description || null,
-        start_date: values.start_date || new Date().toISOString(),
+        start_date: values.start_date || '',
         end_date: values.end_date || null,
         location: values.location || null,
         banner_url: values.banner_url || null,

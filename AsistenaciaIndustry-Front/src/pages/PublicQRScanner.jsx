@@ -331,7 +331,7 @@ export default function PublicQRScanner({ eventId: propEventId }) {
 
   const fmtH = (iso) => {
     try { 
-      const cleanIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso.replace(/-/g, '/').replace('T', ' ');
+      const cleanIso = iso ? iso.split('.')[0].replace('Z', '').split('+')[0].replace(/-/g, '/').replace('T', ' ') : '';
       return new Date(cleanIso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false}); 
     }
     catch { return ''; }
