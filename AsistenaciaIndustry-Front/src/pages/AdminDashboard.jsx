@@ -94,7 +94,7 @@ export default function AdminDashboard({ selectedEventId }) {
       key: 'created_at',
       render: (date) => (
         <Text style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-          {new Date(date).toLocaleString('es-GT')}
+          {new Date(date.endsWith('Z') || date.includes('+') ? date : date.replace(/-/g, '/').replace('T', ' ')).toLocaleString('es-GT')}
         </Text>
       )
     },

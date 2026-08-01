@@ -21,7 +21,11 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 // Helper: format date for display
-const fmtDate = (d) => d ? new Date(d).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const cleanD = d.endsWith('Z') || d.includes('+') ? d : d.replace(/-/g, '/').replace('T', ' ');
+  return new Date(cleanD).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+};
 
 export default function EventManagement({ selectedEventId, setSelectedEventId }) {
   const [events, setEvents] = useState([]);

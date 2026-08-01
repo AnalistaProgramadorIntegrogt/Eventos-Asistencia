@@ -330,8 +330,11 @@ export default function PublicQRScanner({ eventId: propEventId }) {
 
 
   const fmtH = (iso) => {
-    try { return new Date(iso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false}); }
-    catch { return null; }
+    try { 
+      const cleanIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso.replace(/-/g, '/').replace('T', ' ');
+      return new Date(cleanIso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false}); 
+    }
+    catch { return ''; }
   };
 
   const HORA_INGRESO = ok && win && scanResult.data?.check_in_time
