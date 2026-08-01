@@ -67,6 +67,12 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       return n.includes('sin categor');
     };
 
+    const isExcludedCat = (name) => {
+      if (!name) return false;
+      const n = name.trim().toLowerCase();
+      return n === 'vip' || n === 'general' || n.includes('general /');
+    };
+
     // Obtener invitaciones activas con su categoría (fuente principal para VIPs)
     // NOTA: invitations no tiene columna "status", solo "is_active"
     const { data: activeInvitations } = await supabase
@@ -77,7 +83,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     const categoryStats = {};
     (allEventCategories || []).forEach(c => {
-      if (c.name && !isGenericCat(c.name)) {
+      if (c.name && !isGenericCat(c.name) && !isExcludedCat(c.name)) {
         categoryStats[c.name] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
       }
     });
@@ -92,6 +98,8 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       const isCheckedIn = false; // check-in real viene de attendees
 
       if (catName && !isGenericCat(catName)) {
+        if (isExcludedCat(catName)) return; // Skip completely
+
         if (!categoryStats[catName]) {
           categoryStats[catName] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
         }
@@ -116,7 +124,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       const catName = a.event_categories?.name;
       const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in';
       // Solo actualizar los contadores de asistidos (no duplicar totales)
-      if (catName && !isGenericCat(catName) && categoryStats[catName]) {
+      if (catName && !isGenericCat(catName) && !isExcludedCat(catName) && categoryStats[catName]) {
         if (a.status === 'checked_in') categoryStats[catName].asistieron += 1;
       }
     });
