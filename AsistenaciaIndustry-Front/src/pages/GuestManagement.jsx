@@ -96,7 +96,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const isGenericCat = (name) => {
     if (!name) return true;
     const n = name.trim().toLowerCase();
-    return n === 'vip' || n === 'general' || n.includes('sin categor') || n.includes('general /');
+    return n.includes('sin categor');
   };
 
   const fetchCategories = async () => {
