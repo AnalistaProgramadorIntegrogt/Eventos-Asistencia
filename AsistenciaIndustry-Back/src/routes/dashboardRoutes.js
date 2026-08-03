@@ -90,12 +90,12 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     let noCatStats = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
 
-    // Procesar invitaciones VIP para estadísticas de categoría
-    // is_active=true → invitado registrado/confirmado | is_active=false o null → pendiente
-    (activeInvitations || []).forEach(inv => {
-      const catName = inv.event_categories?.name;
-      const isConfirmed = inv.is_active === true;
-      const isCheckedIn = false; // check-in real viene de attendees
+    // Procesar todos los asistentes para estadísticas de categoría
+    // status='confirmed' o 'checked_in' → invitado registrado/confirmado
+    (attendees || []).forEach(a => {
+      const catName = a.event_categories?.name;
+      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'attended';
+      const isCheckedIn = a.status === 'checked_in' || a.status === 'attended';
 
       if (catName && !isGenericCat(catName)) {
         if (isExcludedCat(catName)) return; // Skip completely
@@ -118,19 +118,8 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       }
     });
 
-    // Procesar attendees de registro web PÚBLICO (is_public_registration=true)
-    // para estadísticas de check-in y confirmación reales
-    (attendees || []).filter(a => a.is_public_registration === true).forEach(a => {
-      const catName = a.event_categories?.name;
-      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in';
-      // Solo actualizar los contadores de asistidos (no duplicar totales)
-      if (catName && !isGenericCat(catName) && !isExcludedCat(catName) && categoryStats[catName]) {
-        if (a.status === 'checked_in') categoryStats[catName].asistieron += 1;
-      }
-    });
-
-    // Total = invitaciones activas (fuente de verdad del listado de invitados)
-    const totalAllGuests = (activeInvitations || []).length;
+    // Total = total de asistentes reales
+    const totalAllGuests = (attendees || []).length;
 
 
     const categoryChartData = Object.keys(categoryStats).map(cat => {

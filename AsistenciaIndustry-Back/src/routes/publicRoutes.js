@@ -516,6 +516,14 @@ router.post('/events/:id/checkin', async (req, res) => {
 
     const alreadyAttended = existingCheckin || attendee.status === 'checked_in' || attendee.status === 'attended';
     
+    if (attendee.status === 'pending') {
+      return res.status(403).json({
+        success: false,
+        status_code: 'PENDING_REGISTRATION',
+        message: `¡ATENCIÓN! ${attendee.first_name} ${attendee.last_name} aún no ha completado su formulario de registro (Estado: Pendiente). Por favor, indique al invitado que se registre antes de ingresar.`
+      });
+    }
+
     if (alreadyAttended) {
       return res.status(200).json({
         success: false,
