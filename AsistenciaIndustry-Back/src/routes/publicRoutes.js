@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { supabase } from '../config/supabase.js';
 import { generateUniqueAttendeeCode, generateQRDataURL } from '../services/qrService.js';
 import { sendRSVPEmail, sendQRTicketEmail } from '../services/emailService.js';
+import debugData from '../debugData.js';
 
 const router = Router();
+
+router.get('/events/:eventId/debug', debugData);
 
 /**
  * Helper para verificar si un evento ya ha expirado según su fecha límite (end_date o final del día de start_date)

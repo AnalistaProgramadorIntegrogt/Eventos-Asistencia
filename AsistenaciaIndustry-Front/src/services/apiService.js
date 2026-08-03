@@ -381,6 +381,7 @@ export const api = {
     },
     create: (eventId, invitationData) => request(`/events/${eventId}/invitations`, { method: 'POST', body: JSON.stringify(invitationData) }),
     update: (id, invitationData) => request(`/invitations/${id}`, { method: 'PUT', body: JSON.stringify(invitationData) }),
+    updateStatus: (id, status) => request(`/invitations/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
     importExcel: (eventId, file) => {
       const formData = file instanceof FormData ? file : new FormData();
       if (!(file instanceof FormData)) {

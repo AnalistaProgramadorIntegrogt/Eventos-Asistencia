@@ -554,6 +554,63 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
   }
 });
 
+// PUT /api/invitations/:id/status - Actualizar solo el estado de la invitación/asistente
+router.put('/invitations/:id/status', requirePermission(['EDIT_GUEST_RSVP', 'EDIT_GUEST']), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'El estado es requerido' });
+    }
+
+    const inv = await InvitationModel.findById(id);
+    if (!inv) return res.status(404).json({ success: false, error: 'Invitación no encontrada' });
+
+    // Buscar si existe un asistente
+    const { data: existingAttendee } = await supabase
+      .from('attendees')
+      .select('*')
+      .eq('invitation_id', id)
+      .maybeSingle();
+
+    if (existingAttendee) {
+      // Actualizar estado del asistente
+      const { error: updErr } = await supabase
+        .from('attendees')
+        .update({ status })
+        .eq('id', existingAttendee.id);
+      
+      if (updErr) throw updErr;
+    } else {
+      // Crear asistente con el estado proporcionado
+      const rawName = inv.guest_name || 'Invitado VIP';
+      const nameParts = rawName.trim().split(' ');
+      
+      const attendeePayload = {
+        event_id: inv.event_id,
+        invitation_id: inv.id,
+        category_id: inv.category_id || null,
+        first_name: nameParts[0] || 'Invitado',
+        last_name: nameParts.slice(1).join(' ') || '',
+        email: inv.guest_email || '',
+        qr_code: `VIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        status: status,
+        is_public_registration: false,
+        additional_data: inv.additional_data || {}
+      };
+
+      const { error: insErr } = await supabase.from('attendees').insert([attendeePayload]);
+      if (insErr) throw insErr;
+    }
+
+    res.json({ success: true, message: 'Estado actualizado correctamente' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 // PUT /api/invitations/:id/toggle - Activar o desactivar invitación / cambiar RSVP (Solo Admin)
 router.put('/invitations/:id/toggle', requirePermission(['EDIT_GUEST_RSVP', 'EDIT_GUEST']), async (req, res) => {
   try {
