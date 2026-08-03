@@ -136,8 +136,14 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const handleSaveEditGuest = async (values) => {
     if (!editingGuest) return;
     try {
-      const targetId = editingGuest.invitation_id || editingGuest.id;
-      const res = await api.invitations.update(targetId, values);
+      let res;
+      if (editingGuest.is_imported || editingGuest.invitation_id) {
+        const targetId = editingGuest.invitation_id || editingGuest.id;
+        res = await api.invitations.update(targetId, values);
+      } else {
+        res = await api.attendees.update(editingGuest.id, values);
+      }
+
       if (res.success) {
         message.success('Datos del invitado actualizados correctamente.');
         setShowEditModal(false);

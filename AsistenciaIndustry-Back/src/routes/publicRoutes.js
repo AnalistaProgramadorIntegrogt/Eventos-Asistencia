@@ -158,6 +158,7 @@ router.post('/events/:id/register', async (req, res) => {
         .eq('event_id', id)
         .eq('code', invitation_code)
         .is('deleted_at', null)
+        .limit(1)
         .maybeSingle();
 
       if (inv && inv.is_active) {
@@ -512,6 +513,7 @@ router.post('/events/:id/checkin', async (req, res) => {
       .select('checked_in_at')
       .eq('event_id', id)
       .eq('attendee_id', attendee.id)
+      .limit(1)
       .maybeSingle();
 
     const alreadyAttended = existingCheckin || attendee.status === 'checked_in' || attendee.status === 'attended';

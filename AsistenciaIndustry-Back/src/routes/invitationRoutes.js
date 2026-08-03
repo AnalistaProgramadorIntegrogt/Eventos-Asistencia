@@ -516,6 +516,7 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
       .from('attendees')
       .select('*')
       .eq('invitation_id', id)
+      .limit(1)
       .maybeSingle();
 
     if (existingAttendee) {
@@ -572,6 +573,7 @@ router.put('/invitations/:id/status', requirePermission(['EDIT_GUEST_RSVP', 'EDI
       .from('attendees')
       .select('*')
       .eq('invitation_id', id)
+      .limit(1)
       .maybeSingle();
 
     if (existingAttendee) {
