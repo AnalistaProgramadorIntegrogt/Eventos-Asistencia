@@ -28,15 +28,11 @@ export const sendQRWhatsApp = async (phone, qrBase64, caption) => {
 
     const payload = {
       number: cleanPhone,
-      options: {
-        delay: 1200,
-        presence: "composing"
-      },
-      mediaMessage: {
-        mediatype: "image",
-        caption: caption,
-        media: base64Data
-      }
+      mediatype: "image",
+      mimetype: "image/png",
+      caption: caption,
+      media: base64Data,
+      fileName: "qr.png"
     };
 
     console.log(`[WhatsAppService] Enviando QR a ${cleanPhone} vía Evolution API...`);

@@ -142,7 +142,7 @@ router.post('/:eventId/attendees', requirePermission('VIEW_GUESTS'), async (req,
 router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIEW_GUESTS'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { first_name, last_name, email, company, job_title, category_id, status, additional_data } = req.body;
+    const { first_name, last_name, email, company, job_title, category_id, status, additional_data, phone } = req.body;
 
     const existingAttendee = await AttendeeModel.findById(id);
     if (!existingAttendee) {
@@ -157,7 +157,12 @@ router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIE
     if (job_title !== undefined) updates.job_title = job_title;
     if (category_id !== undefined) updates.category_id = category_id;
     if (status !== undefined) updates.status = status;
-    if (additional_data !== undefined) updates.additional_data = additional_data;
+    
+    let mergedAdditionalData = additional_data !== undefined ? additional_data : existingAttendee.additional_data;
+    if (phone !== undefined) {
+      mergedAdditionalData = { ...(mergedAdditionalData || {}), phone };
+    }
+    updates.additional_data = mergedAdditionalData;
 
     const updated = await AttendeeModel.update(id, updates);
 
