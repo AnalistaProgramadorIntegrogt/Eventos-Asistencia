@@ -13,6 +13,7 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import whatsappRoutes from './routes/whatsappRoutes.js';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -65,6 +66,7 @@ app.use('/api', authenticateToken, attendeeRoutes);
 app.use('/api/checkin', authenticateToken, checkinRoutes);
 app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 app.use('/api/trash', authenticateToken, requirePermission('DELETE_EVENTS'), trashRoutes);
+app.use('/api/whatsapp', authenticateToken, whatsappRoutes);
 
 // Gestión de Usuarios y Roles
 app.use('/api/users', authenticateToken, userRoutes);

@@ -122,6 +122,11 @@ async function request(endpoint, options = {}, isRetry = false) {
 }
 
 export const api = {
+  whatsapp: {
+    getStatus: () => request('/whatsapp/status'),
+    logout: () => request('/whatsapp/logout', { method: 'DELETE' })
+  },
+
   // 1. Auth Endpoints
   auth: {
     login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),

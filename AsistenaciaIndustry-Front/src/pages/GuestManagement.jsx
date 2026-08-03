@@ -93,8 +93,9 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
   
-  // WhatsApp State
   const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waConnectionStatus, setWaConnectionStatus] = useState('LOADING'); // LOADING | QR_READY | CONNECTED
+  const [waQrCodeBase64, setWaQrCodeBase64] = useState('');
   const [waForm] = Form.useForm();
   const [selectedWaGuest, setSelectedWaGuest] = useState(null);
   const [waLoading, setWaLoading] = useState(false);
@@ -274,11 +275,54 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
   };
 
+  // WhatsApp connection polling
+  useEffect(() => {
+    let intervalId;
+    
+    const checkWaStatus = async () => {
+      try {
+        const res = await api.whatsapp.getStatus();
+        if (res.status === 'CONNECTED') {
+          setWaConnectionStatus('CONNECTED');
+        } else if (res.status === 'QR_READY') {
+          setWaConnectionStatus('QR_READY');
+          setWaQrCodeBase64(res.qr);
+        } else {
+          // Could be CONNECTING or something else
+          setWaConnectionStatus('LOADING');
+        }
+      } catch (err) {
+        console.error('Error fetching WA status:', err);
+      }
+    };
+
+    if (waModalOpen && waConnectionStatus !== 'CONNECTED') {
+      checkWaStatus(); // check immediately
+      intervalId = setInterval(checkWaStatus, 3000); // poll every 3 seconds
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [waModalOpen, waConnectionStatus]);
+
   const handleOpenWaModal = (record) => {
     setSelectedWaGuest(record);
     const phone = record.phone || (record.additional_data && record.additional_data.phone) || '';
     waForm.setFieldsValue({ phone });
     setWaModalOpen(true);
+    // Connection status will be set by the useEffect polling
+    setWaConnectionStatus('LOADING');
+  };
+
+  const handleLogoutWa = async () => {
+    try {
+      setWaConnectionStatus('LOADING');
+      await api.whatsapp.logout();
+      setWaConnectionStatus('LOADING'); // This will trigger the useEffect to fetch the new QR
+    } catch (e) {
+      message.error('Error al desvincular WhatsApp: ' + e.message);
+    }
   };
 
   const handleSendWa = async (values) => {
@@ -1038,46 +1082,91 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         title={
           <Space>
             <WhatsAppOutlined style={{ color: '#25D366', fontSize: '1.2rem' }} />
-            <Text strong>Enviar Código QR por WhatsApp</Text>
+            <Text strong>
+              {waConnectionStatus === 'CONNECTED' ? 'Enviar Código QR por WhatsApp' : 'Vincular Dispositivo WhatsApp'}
+            </Text>
           </Space>
         }
         open={waModalOpen}
         onCancel={() => setWaModalOpen(false)}
         footer={null}
       >
-        <div style={{ marginBottom: 16 }}>
-          <Text>
-            Se enviará la imagen del Código QR de acceso a 
-            <strong> {selectedWaGuest?.guest_name || selectedWaGuest?.full_name || selectedWaGuest?.first_name || 'este invitado'} </strong>
-            al siguiente número de WhatsApp.
-          </Text>
-        </div>
-        <Form form={waForm} layout="vertical" onFinish={handleSendWa}>
-          <Form.Item
-            name="phone"
-            label="Número de Teléfono (con código de país)"
-            rules={[
-              { required: true, message: 'El número es requerido' }
-            ]}
-          >
-            <Input placeholder="Ej. +502 12345678" prefix={<PhoneOutlined />} />
-          </Form.Item>
-          
-          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
-            <Space>
-              <Button onClick={() => setWaModalOpen(false)}>Cancelar</Button>
-              <Button 
-                type="primary" 
-                htmlType="submit" 
-                loading={waLoading}
-                style={{ backgroundColor: '#25D366', borderColor: '#25D366' }}
-                icon={<SendOutlined />}
+        {waConnectionStatus === 'LOADING' && (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <SyncOutlined spin style={{ fontSize: '32px', color: '#0284c7', marginBottom: '16px' }} />
+            <Title level={5}>Verificando conexión...</Title>
+            <Text type="secondary">Conectando con el motor de WhatsApp</Text>
+          </div>
+        )}
+
+        {waConnectionStatus === 'QR_READY' && (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <Alert
+              message="Vinculación Requerida"
+              description="Abre WhatsApp en tu teléfono, ve a 'Dispositivos Vinculados' y escanea este código QR."
+              type="info"
+              showIcon
+              style={{ marginBottom: '24px', textAlign: 'left' }}
+            />
+            {waQrCodeBase64 ? (
+              <img src={waQrCodeBase64} alt="WhatsApp QR Code" style={{ width: '250px', height: '250px', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+            ) : (
+              <SyncOutlined spin style={{ fontSize: '32px' }} />
+            )}
+            <div style={{ marginTop: '16px' }}>
+              <Text type="secondary">Esperando escaneo...</Text>
+            </div>
+          </div>
+        )}
+
+        {waConnectionStatus === 'CONNECTED' && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <Alert
+                message="WhatsApp Conectado"
+                type="success"
+                showIcon
+                style={{ marginBottom: '16px' }}
+                action={
+                  <Button size="small" type="text" danger onClick={handleLogoutWa}>
+                    Desvincular
+                  </Button>
+                }
+              />
+              <Text>
+                Se enviará la imagen del Código QR de acceso a 
+                <strong> {selectedWaGuest?.guest_name || selectedWaGuest?.full_name || selectedWaGuest?.first_name || 'este invitado'} </strong>
+                al siguiente número.
+              </Text>
+            </div>
+            <Form form={waForm} layout="vertical" onFinish={handleSendWa}>
+              <Form.Item
+                name="phone"
+                label="Número de Teléfono (con código de país)"
+                rules={[
+                  { required: true, message: 'El número es requerido' }
+                ]}
               >
-                Enviar WhatsApp
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
+                <Input placeholder="Ej. +502 12345678" prefix={<PhoneOutlined />} />
+              </Form.Item>
+              
+              <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+                <Space>
+                  <Button onClick={() => setWaModalOpen(false)}>Cancelar</Button>
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    loading={waLoading}
+                    style={{ backgroundColor: '#25D366', borderColor: '#25D366' }}
+                    icon={<SendOutlined />}
+                  >
+                    Enviar WhatsApp
+                  </Button>
+                </Space>
+              </Form.Item>
+            </Form>
+          </>
+        )}
       </Modal>
 
     </div>
