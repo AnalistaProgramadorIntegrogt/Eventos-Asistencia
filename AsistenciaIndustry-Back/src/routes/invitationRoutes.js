@@ -547,6 +547,22 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
           await supabase.from('attendees').update(attUpdates).eq('invitation_id', id);
         }
       }
+    } else if (company || job_title || phone) {
+      // Si no existe asistente pero se agregaron datos adicionales, lo creamos
+      const newAtt = {
+        event_id: updated.event_id,
+        invitation_id: id,
+        category_id: updated.category_id || null,
+        first_name: updated.guest_name ? updated.guest_name.split(' ')[0] : 'Invitado',
+        last_name: updated.guest_name ? updated.guest_name.split(' ').slice(1).join(' ') : '',
+        email: updated.guest_email || '',
+        qr_code: updated.code,
+        status: 'pending',
+        company: company || '',
+        job_title: job_title || '',
+        additional_data: phone ? { phone } : {}
+      };
+      await supabase.from('attendees').insert([newAtt]);
     }
 
     res.json({ success: true, data: formatInvitationResponse(updated) });

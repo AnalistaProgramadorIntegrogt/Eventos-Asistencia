@@ -50,7 +50,25 @@ export const sendQRWhatsApp = async (phone, qrBase64, caption) => {
 
     if (!response.ok) {
       console.error('[WhatsAppService] Error en Evolution API:', responseData);
-      throw new Error(`Error Evolution API: ${responseData?.message || response.statusText}`);
+      let errMsg = responseData?.error || response.statusText;
+      
+      // Handle "exists: false" case
+      if (responseData?.response?.message && Array.isArray(responseData.response.message)) {
+        const msgDetails = responseData.response.message[0];
+        if (msgDetails && msgDetails.exists === false) {
+          errMsg = `El número ${msgDetails.number || cleanPhone} no está registrado en WhatsApp. Asegúrese de incluir el código de país (ej. 502).`;
+        } else if (typeof msgDetails === 'string') {
+          errMsg = msgDetails;
+        } else if (Array.isArray(msgDetails) && typeof msgDetails[0] === 'string') {
+          errMsg = msgDetails[0];
+        } else {
+          errMsg = JSON.stringify(responseData.response.message);
+        }
+      } else if (responseData?.response?.message) {
+        errMsg = typeof responseData.response.message === 'string' ? responseData.response.message : JSON.stringify(responseData.response.message);
+      }
+      
+      throw new Error(`Error Evolution API: ${errMsg}`);
     }
 
     console.log(`[WhatsAppService] QR enviado exitosamente a ${cleanPhone}`);
