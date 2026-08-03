@@ -246,4 +246,41 @@ router.delete('/attendees/:id/permanent', requirePermission('MANAGE_GUESTS'), as
   }
 });
 
+// POST /api/attendees/:id/send-whatsapp - Enviar QR por WhatsApp manualmente
+router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ success: false, error: 'El número de teléfono es requerido.' });
+    }
+
+    const attendee = await AttendeeModel.findById(id);
+    if (!attendee) {
+      return res.status(404).json({ success: false, error: 'Asistente no encontrado' });
+    }
+
+    const { EventModel } = await import('../models/eventModel.js');
+    const event = await EventModel.findById(attendee.event_id);
+    const eventName = event ? event.name : 'nuestro evento';
+
+    const { sendQRWhatsApp } = await import('../services/whatsappService.js');
+    const qrDataUrl = await generateQRDataURL(attendee.qr_code);
+
+    const firstName = attendee.first_name || 'Invitado';
+    const caption = `¡Hola ${firstName}!\n\nAdjunto encontrarás tu Código QR para ingresar a *${eventName}*.\n\nPor favor, preséntalo en la entrada para tu registro.`;
+
+    await sendQRWhatsApp(phone, qrDataUrl, caption);
+
+    res.json({
+      success: true,
+      message: 'Código QR enviado por WhatsApp exitosamente.'
+    });
+  } catch (err) {
+    console.error('Error in send-whatsapp route:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;

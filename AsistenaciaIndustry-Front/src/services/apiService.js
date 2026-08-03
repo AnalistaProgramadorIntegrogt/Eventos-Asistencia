@@ -189,7 +189,8 @@ export const api = {
     getById: (id) => request(`/attendees/${id}`),
     create: (eventId, attendeeData) => request(`/events/${eventId}/attendees`, { method: 'POST', body: JSON.stringify(attendeeData) }),
     update: (id, attendeeData) => request(`/attendees/${id}`, { method: 'PUT', body: JSON.stringify(attendeeData) }),
-    delete: (id) => request(`/attendees/${id}`, { method: 'DELETE' })
+    delete: (id) => request(`/attendees/${id}`, { method: 'DELETE' }),
+    sendWhatsApp: (id, phone) => request(`/attendees/${id}/send-whatsapp`, { method: 'POST', body: JSON.stringify({ phone }) })
   },
 
   // 5. Invitations & Form Submissions Endpoints

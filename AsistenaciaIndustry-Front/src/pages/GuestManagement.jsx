@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space, Popconfirm, message, Row, Col, Select, Switch, Tooltip, Segmented, Badge, QRCode, Popover, Alert } from 'antd';
-import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined, TagOutlined, MailOutlined, SendOutlined, PhoneOutlined } from '@ant-design/icons';
+import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined, TagOutlined, MailOutlined, SendOutlined, PhoneOutlined, WhatsAppOutlined } from '@ant-design/icons';
 import { api, getStoredUser } from '../services/apiService';
 
 const { Title, Text } = Typography;
@@ -92,6 +92,12 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [qrModalGuest, setQrModalGuest] = useState(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
+  
+  // WhatsApp State
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waForm] = Form.useForm();
+  const [selectedWaGuest, setSelectedWaGuest] = useState(null);
+  const [waLoading, setWaLoading] = useState(false);
 
   const isGenericCat = (name) => {
     if (!name) return true;
@@ -265,6 +271,32 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     } catch (err) {
       message.error(err.message);
+    }
+  };
+
+  const handleOpenWaModal = (record) => {
+    setSelectedWaGuest(record);
+    const phone = record.phone || (record.additional_data && record.additional_data.phone) || '';
+    waForm.setFieldsValue({ phone });
+    setWaModalOpen(true);
+  };
+
+  const handleSendWa = async (values) => {
+    if (!selectedWaGuest) return;
+    setWaLoading(true);
+    try {
+      const targetId = selectedWaGuest.attendee_id || selectedWaGuest.id;
+      const res = await api.attendees.sendWhatsApp(targetId, values.phone);
+      if (res.success) {
+        message.success(res.message || '✅ WhatsApp enviado exitosamente.');
+        setWaModalOpen(false);
+      } else {
+        message.error('Error al enviar WhatsApp: ' + (res.error || 'Ocurrió un problema.'));
+      }
+    } catch (err) {
+      message.error('Error al enviar WhatsApp: ' + err.message);
+    } finally {
+      setWaLoading(false);
     }
   };
 
@@ -657,6 +689,15 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               />
             </Tooltip>
           )}
+          {(record.status === 'confirmed' || record.status === 'checked_in') && (
+            <Tooltip title="Enviar QR por WhatsApp">
+              <Button
+                size="small"
+                icon={<WhatsAppOutlined style={{ color: '#25D366' }} />}
+                onClick={() => handleOpenWaModal(record)}
+              />
+            </Tooltip>
+          )}
           {canRegenerateQR && (
             <Tooltip title="Regenerar Código QR">
               <Popconfirm
@@ -991,6 +1032,54 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           </div>
         )}
       </Modal>
+
+      {/* Modal Enviar WhatsApp */}
+      <Modal
+        title={
+          <Space>
+            <WhatsAppOutlined style={{ color: '#25D366', fontSize: '1.2rem' }} />
+            <Text strong>Enviar Código QR por WhatsApp</Text>
+          </Space>
+        }
+        open={waModalOpen}
+        onCancel={() => setWaModalOpen(false)}
+        footer={null}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text>
+            Se enviará la imagen del Código QR de acceso a 
+            <strong> {selectedWaGuest?.guest_name || selectedWaGuest?.full_name || selectedWaGuest?.first_name || 'este invitado'} </strong>
+            al siguiente número de WhatsApp.
+          </Text>
+        </div>
+        <Form form={waForm} layout="vertical" onFinish={handleSendWa}>
+          <Form.Item
+            name="phone"
+            label="Número de Teléfono (con código de país)"
+            rules={[
+              { required: true, message: 'El número es requerido' }
+            ]}
+          >
+            <Input placeholder="Ej. +502 12345678" prefix={<PhoneOutlined />} />
+          </Form.Item>
+          
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setWaModalOpen(false)}>Cancelar</Button>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                loading={waLoading}
+                style={{ backgroundColor: '#25D366', borderColor: '#25D366' }}
+                icon={<SendOutlined />}
+              >
+                Enviar WhatsApp
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
     </div>
   );
 }
