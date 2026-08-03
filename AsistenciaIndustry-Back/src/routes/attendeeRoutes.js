@@ -34,6 +34,7 @@ router.get('/:eventId/form-submissions', requirePermission('VIEW_GUESTS'), async
       invitation_code: att.invitations ? att.invitations.code : null,
       status: att.status, // 'pending', 'confirmed', 'declined'
       qr_code: att.qr_code,
+      invitation_id: att.invitation_id,
       is_public_registration: att.is_public_registration,
       additional_data: att.additional_data || {},
       created_at: att.created_at
