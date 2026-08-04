@@ -165,13 +165,46 @@ router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIE
     if (category_id !== undefined) updates.category_id = category_id;
     if (status !== undefined) updates.status = status;
     
-    let mergedAdditionalData = additional_data !== undefined ? additional_data : existingAttendee.additional_data;
-    if (phone !== undefined) {
-      mergedAdditionalData = { ...(mergedAdditionalData || {}), phone };
+    let mergedAdditionalData = additional_data !== undefined ? { ...additional_data } : { ...(existingAttendee.additional_data || {}) };
+    
+    if (company !== undefined) {
+      mergedAdditionalData.company = company;
+      mergedAdditionalData.empresa = company;
     }
+    if (phone !== undefined) {
+      mergedAdditionalData.phone = phone;
+      mergedAdditionalData.telefono = phone;
+      mergedAdditionalData.celular = phone;
+      updates.phone = phone;
+    }
+    if (job_title !== undefined) {
+      mergedAdditionalData.job_title = job_title;
+      mergedAdditionalData.cargo = job_title;
+      mergedAdditionalData.puesto = job_title;
+    }
+
+    Object.keys(existingAttendee.additional_data || {}).forEach(key => {
+      const normKey = key.toLowerCase();
+      if (company !== undefined && (normKey.includes('empresa') || normKey.includes('company'))) {
+        mergedAdditionalData[key] = company;
+      }
+      if (phone !== undefined && (normKey.includes('telef') || normKey.includes('phone') || normKey.includes('celular'))) {
+        mergedAdditionalData[key] = phone;
+      }
+      if (job_title !== undefined && (normKey.includes('cargo') || normKey.includes('puesto') || normKey.includes('job'))) {
+        mergedAdditionalData[key] = job_title;
+      }
+    });
+
     updates.additional_data = mergedAdditionalData;
 
-    const updated = await AttendeeModel.update(id, updates);
+    let updated;
+    try {
+      updated = await AttendeeModel.update(id, updates);
+    } catch (e) {
+      delete updates.phone;
+      updated = await AttendeeModel.update(id, updates);
+    }
 
     // Si el estado cambia a 'confirmed' y antes no lo estaba, enviar el ticket QR automáticamente
     if (status === 'confirmed' && existingAttendee && existingAttendee.status !== 'confirmed') {

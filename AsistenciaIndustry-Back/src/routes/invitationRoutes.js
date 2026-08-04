@@ -530,10 +530,29 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
       if (company !== undefined) attUpdates.company = company;
       if (job_title !== undefined) attUpdates.job_title = job_title;
       if (category_id !== undefined) attUpdates.category_id = category_id;
-      if (phone !== undefined) {
-        attUpdates.additional_data = { ...(existingAttendee.additional_data || {}), phone };
-        attUpdates.phone = phone;
-      }
+      if (phone !== undefined) attUpdates.phone = phone;
+
+      const existingAddData = existingAttendee.additional_data || {};
+      const newAddData = {
+        ...existingAddData,
+        ...(company !== undefined ? { company, empresa: company } : {}),
+        ...(phone !== undefined ? { phone, telefono: phone, celular: phone } : {}),
+        ...(job_title !== undefined ? { job_title, cargo: job_title, puesto: job_title } : {})
+      };
+
+      Object.keys(existingAddData).forEach(key => {
+        const normKey = key.toLowerCase();
+        if (company !== undefined && (normKey.includes('empresa') || normKey.includes('company'))) {
+          newAddData[key] = company;
+        }
+        if (phone !== undefined && (normKey.includes('telef') || normKey.includes('phone') || normKey.includes('celular'))) {
+          newAddData[key] = phone;
+        }
+        if (job_title !== undefined && (normKey.includes('cargo') || normKey.includes('puesto') || normKey.includes('job'))) {
+          newAddData[key] = job_title;
+        }
+      });
+      attUpdates.additional_data = newAddData;
 
       if (Object.keys(attUpdates).length > 0) {
         try {
@@ -548,7 +567,11 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
         }
       }
     } else if (company || job_title || phone) {
-      // Si no existe asistente pero se agregaron datos adicionales, lo creamos
+      const newAddData = {
+        ...(company ? { company, empresa: company } : {}),
+        ...(phone ? { phone, telefono: phone, celular: phone } : {}),
+        ...(job_title ? { job_title, cargo: job_title, puesto: job_title } : {})
+      };
       const newAtt = {
         event_id: updated.event_id,
         invitation_id: id,
@@ -560,9 +583,16 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
         status: 'pending',
         company: company || '',
         job_title: job_title || '',
-        additional_data: phone ? { phone } : {}
+        additional_data: newAddData
       };
-      await supabase.from('attendees').insert([newAtt]);
+      if (phone) newAtt.phone = phone;
+
+      try {
+        await supabase.from('attendees').insert([newAtt]);
+      } catch (insE) {
+        delete newAtt.phone;
+        await supabase.from('attendees').insert([newAtt]);
+      }
     }
 
     res.json({ success: true, data: formatInvitationResponse(updated) });

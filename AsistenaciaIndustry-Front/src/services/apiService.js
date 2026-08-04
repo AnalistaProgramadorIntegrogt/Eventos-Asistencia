@@ -231,6 +231,33 @@ export const api = {
 
         const normalizeStr = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, ' ');
 
+        const extractPhone = (item) => {
+          if (item.phone) return item.phone;
+          if (item.telefono) return item.telefono;
+          const addData = item.additional_data || {};
+          for (const [k, v] of Object.entries(addData)) {
+            if (v === undefined || v === null || String(v).trim() === '') continue;
+            const nk = String(k).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (nk.includes('telef') || nk.includes('phone') || nk.includes('celular') || nk.includes('movil')) {
+              return String(v).trim();
+            }
+          }
+          return '';
+        };
+
+        const extractFormCategory = (item) => {
+          if (item.form_category) return item.form_category;
+          const addData = item.additional_data || {};
+          for (const [k, v] of Object.entries(addData)) {
+            if (v === undefined || v === null || String(v).trim() === '') continue;
+            const nk = String(k).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (nk.includes('categoria') || nk === 'tipo' || nk.includes('category')) {
+              return String(v).trim();
+            }
+          }
+          return '';
+        };
+
         // 1. Cargar primero todas las invitaciones VIP
         invitations.forEach(inv => {
           const attendeeComp = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? inv.attendees[0]?.company : (inv.attendees?.company || '');
@@ -239,10 +266,11 @@ export const api = {
           const cleanEmail = (inv.guest_email || inv.email || '').trim().toLowerCase();
           const cleanCode = (inv.code || inv.invitation_code || '').trim().toLowerCase();
 
-          const formCat = inv.additional_data?.categoria || inv.additional_data?.category || inv.additional_data?.tipo || inv.additional_data?.categoria_formulario || '';
+          const formCat = extractFormCategory(inv);
           const internalCat = inv.category_name || (inv.event_categories ? inv.event_categories.name : null);
 
-          const attendeePhone = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? (inv.attendees[0]?.phone || inv.attendees[0]?.additional_data?.phone || inv.attendees[0]?.additional_data?.telefono) : '';
+          const attendeePhone = Array.isArray(inv.attendees) && inv.attendees.length > 0 ? (inv.attendees[0]?.phone || extractPhone(inv.attendees[0])) : '';
+          const phoneVal = inv.phone || attendeePhone || extractPhone(inv);
 
           const invItem = {
             ...inv,
@@ -252,7 +280,7 @@ export const api = {
             email: inv.guest_email || inv.email || '',
             company: inv.company || inv.guest_company || inv.empresa || attendeeComp || '',
             job_title: inv.job_title || attendeeJob || '',
-            phone: inv.phone || attendeePhone || inv.additional_data?.phone || inv.additional_data?.telefono || '',
+            phone: phoneVal,
             category_name: internalCat || null,
             internal_category: internalCat || null,
             form_category: formCat,
@@ -298,9 +326,9 @@ export const api = {
             existing = nameMap.get(subNormName);
           }
 
-          const subFormCat = sub.additional_data?.categoria || sub.additional_data?.category || sub.additional_data?.tipo || sub.additional_data?.categoria_formulario || '';
+          const subFormCat = extractFormCategory(sub);
           const subInternalCat = sub.category_name || (sub.event_categories ? sub.event_categories.name : null);
-          const subPhone = sub.phone || sub.additional_data?.phone || sub.additional_data?.telefono || sub.additional_data?.celular || '';
+          const subPhone = extractPhone(sub);
 
           if (existing) {
             existing.attendee_id = sub.id;

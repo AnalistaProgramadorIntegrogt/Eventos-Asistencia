@@ -539,40 +539,90 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const vipPending = vipSubmissions.filter(i => (!i.status || i.status === 'pending') && !i.attended).length;
   const publicTotal = publicSubmissions.length;
 
-  // Dynamic column builder based on eventFormConfig
+  const getFlexibleValue = (obj, fieldId, fieldLabel) => {
+    if (!obj || typeof obj !== 'object') return null;
+
+    if (fieldId && obj[fieldId] !== undefined && obj[fieldId] !== null && String(obj[fieldId]).trim() !== '') {
+      return obj[fieldId];
+    }
+    if (fieldLabel && obj[fieldLabel] !== undefined && obj[fieldLabel] !== null && String(obj[fieldLabel]).trim() !== '') {
+      return obj[fieldLabel];
+    }
+
+    const normTargetId = fieldId ? String(fieldId).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
+    const normTargetLabel = fieldLabel ? String(fieldLabel).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
+
+    for (const [key, value] of Object.entries(obj)) {
+      if (value === undefined || value === null || String(value).trim() === '') continue;
+      const normKey = String(key).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+      if ((normTargetId && normKey === normTargetId) || (normTargetLabel && normKey === normTargetLabel)) {
+        return value;
+      }
+      if ((normTargetId && normTargetId.length > 2 && normKey.includes(normTargetId)) ||
+          (normTargetLabel && normTargetLabel.length > 2 && normKey.includes(normTargetLabel))) {
+        return value;
+      }
+    }
+
+    return null;
+  };
+
+  // Dynamic column builder based on eventFormConfig with deduplication by semantics
   const activeFormFields = [];
+  const seenTypes = new Set();
+
   if (eventFormConfig && (eventFormConfig.fields || eventFormConfig.custom_fields)) {
     const bFields = (eventFormConfig.fields || []).filter(f => f.visible && !['first_name', 'last_name', 'email', 'category'].includes(f.id));
     const cFields = (eventFormConfig.custom_fields || []).filter(f => f.visible);
-    activeFormFields.push(...bFields, ...cFields);
-    activeFormFields.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+    
+    const combined = [...bFields, ...cFields].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+
+    combined.forEach(f => {
+      const normId = String(f.id).toLowerCase();
+      const normLabel = String(f.label || '').toLowerCase();
+
+      let fieldType = 'custom_' + f.id;
+      if (f.id === 'company' || normId === 'empresa' || normId.includes('company') || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) {
+        fieldType = 'company';
+      } else if (f.id === 'phone' || normId.includes('telef') || normId.includes('phone') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) {
+        fieldType = 'phone';
+      } else if (f.id === 'job_title' || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto') || normLabel.includes('job')) {
+        fieldType = 'job_title';
+      }
+
+      if (!seenTypes.has(fieldType)) {
+        seenTypes.add(fieldType);
+        activeFormFields.push({ ...f, _fieldType: fieldType });
+      }
+    });
   } else {
     activeFormFields.push(
-      { id: 'company', label: 'Empresa' },
-      { id: 'phone', label: 'Teléfono' },
-      { id: 'job_title', label: 'Cargo / Puesto' }
+      { id: 'company', label: 'Empresa', _fieldType: 'company' },
+      { id: 'phone', label: 'Teléfono', _fieldType: 'phone' },
+      { id: 'job_title', label: 'Cargo / Puesto', _fieldType: 'job_title' }
     );
   }
 
   const dynamicColumns = activeFormFields.map(field => {
+    const fType = field._fieldType || '';
+
     return {
       title: field.label || field.id,
       key: field.id,
       render: (_, record) => {
-        const normId = String(field.id).toLowerCase();
-        const normLabel = String(field.label || '').toLowerCase();
         const addData = record.additional_data || {};
 
         // 1. Empresa / Company
-        if (field.id === 'company' || normId === 'empresa' || normId.includes('company') || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) {
-          const comp = record.company || record.guest_company || record.empresa || addData[field.id] || addData.empresa || addData.company || addData[field.label];
+        if (fType === 'company') {
+          const comp = record.company || record.guest_company || record.empresa || getFlexibleValue(addData, 'company', field.label || 'empresa') || getFlexibleValue(addData, 'empresa', 'organización');
           if (!comp) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
           return <Text strong style={{ color: '#1e293b' }}>{String(comp)}</Text>;
         }
 
         // 2. Teléfono / Phone
-        if (field.id === 'phone' || normId.includes('telef') || normId.includes('phone') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) {
-          const ph = record.phone || record.telefono || addData[field.id] || addData.phone || addData.telefono || addData.celular || addData[field.label];
+        if (fType === 'phone') {
+          const ph = record.phone || record.telefono || getFlexibleValue(addData, 'phone', field.label || 'teléfono') || getFlexibleValue(addData, 'telefono', 'celular') || getFlexibleValue(addData, 'movil', 'número de teléfono');
           if (!ph) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
           return (
             <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
@@ -583,18 +633,14 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         }
 
         // 3. Cargo / Job Title
-        if (field.id === 'job_title' || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto') || normLabel.includes('job')) {
-          const job = record.job_title || addData[field.id] || addData.job_title || addData.cargo || addData.puesto || addData[field.label];
+        if (fType === 'job_title') {
+          const job = record.job_title || getFlexibleValue(addData, 'job_title', field.label || 'cargo') || getFlexibleValue(addData, 'cargo', 'puesto');
           if (!job) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
           return <Text style={{ fontSize: '0.85rem', color: '#475569' }}>{String(job)}</Text>;
         }
 
-        // 4. Custom Field (e.g. Dropdown, Text, Checkbox)
-        let val = addData[field.id] !== undefined ? addData[field.id] : addData[field.label];
-        if (val === undefined || val === null || String(val).trim() === '') {
-          val = record[field.id];
-        }
-
+        // 4. Custom Field (e.g. Dropdown, Text, Checkbox, Categoria)
+        let val = getFlexibleValue(addData, field.id, field.label) || record[field.id];
         if (val === undefined || val === null || String(val).trim() === '') {
           return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         }
@@ -606,6 +652,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         );
       }
     };
+  });
+
+  const hasDynamicFormCat = activeFormFields.some(f => {
+    const l = String(f.label || '').toLowerCase();
+    return l.includes('categoria') || l.includes('categoría');
   });
 
   const columns = [
@@ -655,11 +706,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     },
     ...dynamicColumns,
-    {
+    ...(!hasDynamicFormCat ? [{
       title: 'Categoría del Formulario',
       key: 'form_category',
       render: (_, record) => {
-        const formCat = record.form_category || record.additional_data?.categoria || record.additional_data?.category || record.additional_data?.tipo || record.additional_data?.categoria_formulario;
+        const formCat = record.form_category || getFlexibleValue(record.additional_data, 'categoria', 'category') || getFlexibleValue(record.additional_data, 'tipo', 'categoría_formulario');
         if (!formCat) {
           return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         }
@@ -669,18 +720,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           </Tag>
         );
       }
-    },
-    {
-      title: 'Origen de Lista',
-      key: 'origin',
-      render: (_, record) => {
-        const isVip = checkIsVip(record);
-        if (isVip) {
-          return <Tag color="gold" icon={<StarOutlined />} style={{ fontWeight: 'bold' }}>⭐ VIP (Excel/CSV)</Tag>;
-        }
-        return <Tag color="blue" icon={<GlobalOutlined />}>🌐 Registro Web Público</Tag>;
-      }
-    },
+    }] : []),
     {
       title: 'Estado de Registro / RSVP',
       dataIndex: 'status',
