@@ -124,26 +124,50 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const handleOpenEditGuest = (record) => {
     setEditingGuest(record);
     editForm.resetFields();
-    editForm.setFieldsValue({
+    
+    const formVals = {
       guest_name: record.guest_name || record.full_name || `${record.first_name || ''} ${record.last_name || ''}`.trim(),
       guest_email: record.guest_email || record.email || '',
       phone: record.phone || record.additional_data?.phone || '',
       company: record.company || record.guest_company || record.empresa || record.additional_data?.empresa || record.additional_data?.company || '',
       job_title: record.job_title || record.additional_data?.cargo || record.additional_data?.job_title || '',
       category_id: record.category_id || ''
-    });
+    };
+
+    if (record.additional_data) {
+      Object.entries(record.additional_data).forEach(([k, v]) => {
+        formVals[k] = v;
+      });
+    }
+
+    editForm.setFieldsValue(formVals);
     setShowEditModal(true);
   };
 
   const handleSaveEditGuest = async (values) => {
     if (!editingGuest) return;
     try {
+      const additionalData = { ...(editingGuest.additional_data || {}) };
+
+      if (eventFormConfig && Array.isArray(eventFormConfig.custom_fields)) {
+        eventFormConfig.custom_fields.forEach(cf => {
+          if (values[cf.id] !== undefined) {
+            additionalData[cf.id] = values[cf.id];
+          }
+        });
+      }
+
+      const payload = {
+        ...values,
+        additional_data: additionalData
+      };
+
       let res;
       if (editingGuest.is_imported || editingGuest.invitation_id) {
         const targetId = editingGuest.invitation_id || editingGuest.id;
-        res = await api.invitations.update(targetId, values);
+        res = await api.invitations.update(targetId, payload);
       } else {
-        res = await api.attendees.update(editingGuest.id, values);
+        res = await api.attendees.update(editingGuest.id, payload);
       }
 
       if (res.success) {
@@ -1101,6 +1125,27 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           <Form.Item name="job_title" label="Cargo (Opcional)">
             <Input placeholder="Ej: Director Comercial" />
           </Form.Item>
+
+          {eventFormConfig && Array.isArray(eventFormConfig.custom_fields) && eventFormConfig.custom_fields.map(cf => {
+            if (cf.visible === false) return null;
+            if (cf.type === 'select') {
+              return (
+                <Form.Item key={cf.id} name={cf.id} label={cf.label || cf.id}>
+                  <Select placeholder={`Seleccionar ${cf.label}...`} allowClear>
+                    {(cf.options || []).map(opt => (
+                      <Select.Option key={opt} value={opt}>{opt}</Select.Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              );
+            }
+            return (
+              <Form.Item key={cf.id} name={cf.id} label={cf.label || cf.id}>
+                <Input placeholder={`Ingrese ${cf.label}...`} />
+              </Form.Item>
+            );
+          })}
+
           <div style={{ textAlign: 'right', marginTop: '24px' }}>
             <Space>
               <Button onClick={() => setShowEditModal(false)}>Cancelar</Button>

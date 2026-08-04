@@ -332,6 +332,10 @@ export const api = {
 
           if (existing) {
             existing.attendee_id = sub.id;
+            existing.additional_data = {
+              ...(existing.additional_data || {}),
+              ...(sub.additional_data || {})
+            };
             if (sub.status && sub.status !== 'pending') {
               existing.status = sub.status;
             }
