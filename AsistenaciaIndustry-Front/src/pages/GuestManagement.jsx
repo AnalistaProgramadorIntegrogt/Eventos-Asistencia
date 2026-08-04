@@ -80,6 +80,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [categories, setCategories] = useState([]);
+  const [eventFormConfig, setEventFormConfig] = useState(null);
 
   const [typeFilter, setTypeFilter] = useState('all'); // 'all' | 'vip' | 'public'
   const [showSingleModal, setShowSingleModal] = useState(false);
@@ -187,6 +188,16 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   useEffect(() => {
     fetchSubmissions(false);
     fetchCategories();
+
+    if (selectedEventId) {
+      api.events.getById(selectedEventId)
+        .then((res) => {
+          if (res.success && res.data) {
+            setEventFormConfig(res.data.form_config || null);
+          }
+        })
+        .catch(console.error);
+    }
 
     const interval = setInterval(() => {
       fetchSubmissions(true);
@@ -528,6 +539,75 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const vipPending = vipSubmissions.filter(i => (!i.status || i.status === 'pending') && !i.attended).length;
   const publicTotal = publicSubmissions.length;
 
+  // Dynamic column builder based on eventFormConfig
+  const activeFormFields = [];
+  if (eventFormConfig && (eventFormConfig.fields || eventFormConfig.custom_fields)) {
+    const bFields = (eventFormConfig.fields || []).filter(f => f.visible && !['first_name', 'last_name', 'email', 'category'].includes(f.id));
+    const cFields = (eventFormConfig.custom_fields || []).filter(f => f.visible);
+    activeFormFields.push(...bFields, ...cFields);
+    activeFormFields.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  } else {
+    activeFormFields.push(
+      { id: 'company', label: 'Empresa' },
+      { id: 'phone', label: 'Teléfono' },
+      { id: 'job_title', label: 'Cargo / Puesto' }
+    );
+  }
+
+  const dynamicColumns = activeFormFields.map(field => {
+    return {
+      title: field.label || field.id,
+      key: field.id,
+      render: (_, record) => {
+        const normId = String(field.id).toLowerCase();
+        const normLabel = String(field.label || '').toLowerCase();
+        const addData = record.additional_data || {};
+
+        // 1. Empresa / Company
+        if (field.id === 'company' || normId === 'empresa' || normId.includes('company') || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) {
+          const comp = record.company || record.guest_company || record.empresa || addData[field.id] || addData.empresa || addData.company || addData[field.label];
+          if (!comp) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+          return <Text strong style={{ color: '#1e293b' }}>{String(comp)}</Text>;
+        }
+
+        // 2. Teléfono / Phone
+        if (field.id === 'phone' || normId.includes('telef') || normId.includes('phone') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) {
+          const ph = record.phone || record.telefono || addData[field.id] || addData.phone || addData.telefono || addData.celular || addData[field.label];
+          if (!ph) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+          return (
+            <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
+              <PhoneOutlined style={{ marginRight: '6px', color: '#10b981' }} />
+              {formatPhone(ph)}
+            </Text>
+          );
+        }
+
+        // 3. Cargo / Job Title
+        if (field.id === 'job_title' || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto') || normLabel.includes('job')) {
+          const job = record.job_title || addData[field.id] || addData.job_title || addData.cargo || addData.puesto || addData[field.label];
+          if (!job) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+          return <Text style={{ fontSize: '0.85rem', color: '#475569' }}>{String(job)}</Text>;
+        }
+
+        // 4. Custom Field (e.g. Dropdown, Text, Checkbox)
+        let val = addData[field.id] !== undefined ? addData[field.id] : addData[field.label];
+        if (val === undefined || val === null || String(val).trim() === '') {
+          val = record[field.id];
+        }
+
+        if (val === undefined || val === null || String(val).trim() === '') {
+          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        }
+
+        return (
+          <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
+            {String(val)}
+          </Tag>
+        );
+      }
+    };
+  });
+
   const columns = [
     {
       title: 'Nombre Completo',
@@ -536,7 +616,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       render: (text, record) => {
         const name = text || record.guest_name || `${record.first_name || ''} ${record.last_name || ''}`.trim() || 'Invitado';
         const email = record.email || record.guest_email;
-        const job = record.job_title;
         return (
           <div>
             <Text strong style={{ display: 'block' }}>{name}</Text>
@@ -545,42 +624,19 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
                 {email}
               </Text>
             )}
-            {job && (
-              <Text type="secondary" style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>
-                {job}
-              </Text>
-            )}
           </div>
         );
       }
     },
     {
-      title: 'Empresa',
-      dataIndex: 'company',
-      key: 'company',
-      render: (text, record) => {
-        const comp = text || record.company || record.guest_company || record.empresa || record.additional_data?.empresa || record.additional_data?.company;
-        if (!comp) {
-          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+      title: 'Origen de Lista',
+      key: 'origin',
+      render: (_, record) => {
+        const isVip = checkIsVip(record);
+        if (isVip) {
+          return <Tag color="gold" icon={<StarOutlined />} style={{ fontWeight: 'bold' }}>⭐ VIP (Excel/CSV)</Tag>;
         }
-        return <Text strong style={{ color: '#1e293b' }}>{comp}</Text>;
-      }
-    },
-    {
-      title: 'Teléfono',
-      dataIndex: 'phone',
-      key: 'phone',
-      render: (text, record) => {
-        const ph = text || record.phone || record.telefono || record.additional_data?.phone || record.additional_data?.telefono;
-        if (!ph) {
-          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-        }
-        return (
-          <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
-            <PhoneOutlined style={{ marginRight: '6px', color: '#10b981' }} />
-            {formatPhone(ph)}
-          </Text>
-        );
+        return <Tag color="blue" icon={<GlobalOutlined />}>🌐 Registro Web Público</Tag>;
       }
     },
     {
@@ -598,6 +654,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         );
       }
     },
+    ...dynamicColumns,
     {
       title: 'Categoría del Formulario',
       key: 'form_category',

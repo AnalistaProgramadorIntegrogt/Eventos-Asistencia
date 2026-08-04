@@ -116,6 +116,46 @@ router.post('/events/:id/register', async (req, res) => {
       });
     }
 
+    // 1.5. Resolución inteligente de company, phone y job_title
+    let resolvedCompany = company || req.body.empresa || additional_data.company || additional_data.empresa || additional_data.organizacion || additional_data.company_name || '';
+    let resolvedPhone = req.body.phone || req.body.telefono || req.body.celular || additional_data.phone || additional_data.telefono || additional_data.celular || additional_data.movil || '';
+    let resolvedJobTitle = job_title || req.body.cargo || req.body.puesto || additional_data.job_title || additional_data.cargo || additional_data.puesto || '';
+
+    if (event && event.form_config) {
+      const allFields = [
+        ...(event.form_config.fields || []),
+        ...(event.form_config.custom_fields || [])
+      ];
+
+      allFields.forEach(f => {
+        const val = req.body[f.id] || additional_data[f.id];
+        if (!val || typeof val !== 'string' || !val.trim()) return;
+
+        const normId = String(f.id).toLowerCase();
+        const normLabel = String(f.label || '').toLowerCase();
+
+        if (!resolvedCompany && (normId.includes('company') || normId === 'empresa' || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza'))) {
+          resolvedCompany = val.trim();
+        }
+        if (!resolvedPhone && (normId.includes('phone') || normId.includes('telef') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil'))) {
+          resolvedPhone = val.trim();
+        }
+        if (!resolvedJobTitle && (normId.includes('job') || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto'))) {
+          resolvedJobTitle = val.trim();
+        }
+      });
+    }
+
+    const mergedAdditionalData = {
+      ...(additional_data || {}),
+      company: resolvedCompany || (additional_data.company || ''),
+      empresa: resolvedCompany || (additional_data.empresa || ''),
+      phone: resolvedPhone || (additional_data.phone || ''),
+      telefono: resolvedPhone || (additional_data.telefono || ''),
+      job_title: resolvedJobTitle || (additional_data.job_title || ''),
+      cargo: resolvedJobTitle || (additional_data.cargo || '')
+    };
+
     // 2. Validar campos requeridos según form_config del evento
     const formConfig = event.form_config || {};
     const fields = formConfig.fields || [];
@@ -124,7 +164,7 @@ router.post('/events/:id/register', async (req, res) => {
       if (field.visible && field.required) {
         let val = req.body[field.id];
         if (val === undefined || val === null || String(val).trim() === '') {
-          val = additional_data[field.id];
+          val = mergedAdditionalData[field.id];
         }
         if (val === undefined || val === null || String(val).trim() === '') {
           return res.status(400).json({
@@ -139,7 +179,7 @@ router.post('/events/:id/register', async (req, res) => {
     const customFields = formConfig.custom_fields || [];
     for (const cf of customFields) {
       if (cf.required) {
-        const val = additional_data[cf.id];
+        const val = mergedAdditionalData[cf.id];
         if (val === undefined || val === null || String(val).trim() === '') {
           return res.status(400).json({
             success: false,
@@ -230,53 +270,78 @@ router.post('/events/:id/register', async (req, res) => {
 
     let attendee = null;
 
+    const updatePayload = {
+      first_name: first_name || (existingAttendee ? existingAttendee.first_name : ''),
+      last_name: last_name || (existingAttendee ? existingAttendee.last_name : ''),
+      email: email.trim(),
+      company: resolvedCompany || (existingAttendee ? existingAttendee.company : ''),
+      job_title: resolvedJobTitle || (existingAttendee ? existingAttendee.job_title : ''),
+      category_id: finalCategoryId || (existingAttendee ? existingAttendee.category_id : null),
+      additional_data: { ...(existingAttendee ? existingAttendee.additional_data || {} : {}), ...(mergedAdditionalData || {}) },
+      qr_code: qrCode,
+      status: 'confirmed'
+    };
+    if (resolvedPhone) updatePayload.phone = resolvedPhone;
+
     if (existingAttendee) {
-      // Actualizar registro precargado con los datos del formulario + nuevo QR + estado 'confirmed'
-      // Si el invitado puso un email diferente al del CSV, se actualiza con el que él ingresó
-      const { data: updated, error: updateError } = await supabase
-        .from('attendees')
-        .update({
-          first_name: first_name || existingAttendee.first_name,
-          last_name: last_name || existingAttendee.last_name,
-          email: email.trim(),  // Siempre usar el email que el invitado ingresó en el formulario
-          company: company || existingAttendee.company,
-          job_title: job_title || existingAttendee.job_title,
-          category_id: finalCategoryId || existingAttendee.category_id,
-          additional_data: { ...(existingAttendee.additional_data || {}), ...(additional_data || {}) },
-          qr_code: qrCode,
-          status: 'confirmed'
-        })
-        .eq('id', existingAttendee.id)
-        .select()
-        .single();
+      try {
+        const { data: updated, error: updateError } = await supabase
+          .from('attendees')
+          .update(updatePayload)
+          .eq('id', existingAttendee.id)
+          .select()
+          .single();
 
-      if (updateError) throw updateError;
-      attendee = updated;
+        if (updateError) {
+          delete updatePayload.phone;
+          const { data: retryUpdated } = await supabase.from('attendees').update(updatePayload).eq('id', existingAttendee.id).select().single();
+          attendee = retryUpdated;
+        } else {
+          attendee = updated;
+        }
+      } catch (e) {
+        delete updatePayload.phone;
+        const { data: retryUpdated } = await supabase.from('attendees').update(updatePayload).eq('id', existingAttendee.id).select().single();
+        attendee = retryUpdated;
+      }
     } else {
-      // Insertar nuevo registro del asistente público
-      const { data: inserted, error: attendeeError } = await supabase
-        .from('attendees')
-        .insert([
-          {
-            event_id: id,
-            invitation_id: matchedInvitation ? matchedInvitation.id : null,
-            category_id: finalCategoryId,
-            first_name: first_name || '',
-            last_name: last_name || '',
-            email: email.trim(),
-            company: company || '',
-            job_title: job_title || '',
-            additional_data: additional_data || {},
-            qr_code: qrCode,
-            status: 'confirmed',
-            is_public_registration: !matchedInvitation
-          }
-        ])
-        .select()
-        .single();
+      const insertPayload = {
+        event_id: id,
+        invitation_id: matchedInvitation ? matchedInvitation.id : null,
+        category_id: finalCategoryId,
+        first_name: first_name || '',
+        last_name: last_name || '',
+        email: email.trim(),
+        company: resolvedCompany || '',
+        job_title: resolvedJobTitle || '',
+        additional_data: mergedAdditionalData || {},
+        qr_code: qrCode,
+        status: 'confirmed',
+        is_public_registration: !matchedInvitation
+      };
+      if (resolvedPhone) insertPayload.phone = resolvedPhone;
 
-      if (attendeeError) throw attendeeError;
-      attendee = inserted;
+      try {
+        const { data: inserted, error: attendeeError } = await supabase
+          .from('attendees')
+          .insert([insertPayload])
+          .select()
+          .single();
+
+        if (attendeeError) {
+          delete insertPayload.phone;
+          const { data: retryInserted, error: retryErr } = await supabase.from('attendees').insert([insertPayload]).select().single();
+          if (retryErr) throw retryErr;
+          attendee = retryInserted;
+        } else {
+          attendee = inserted;
+        }
+      } catch (err) {
+        delete insertPayload.phone;
+        const { data: retryInserted, error: retryErr } = await supabase.from('attendees').insert([insertPayload]).select().single();
+        if (retryErr) throw retryErr;
+        attendee = retryInserted;
+      }
     }
 
     // 6. Enviar CORREO INMEDIATO con el Código QR utilizando la plantilla del frontend

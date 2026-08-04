@@ -64,7 +64,6 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
   const handleSubmit = async (values) => {
     setSubmitting(true);
     try {
-      // Process "Otro (especifique)" input values
       const processedValues = { ...values };
       Object.keys(values).forEach(key => {
         if (values[key] === 'Otro (especifique)' && values[`${key}_other`]) {
@@ -72,20 +71,52 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
         }
       });
 
-      const standardKeys = ['first_name', 'last_name', 'email', 'company', 'job_title', 'category_id'];
       const standardData = {};
       const additionalData = {};
 
+      const allFormFields = [
+        ...(eventData?.form_config?.fields || []),
+        ...(eventData?.form_config?.custom_fields || [])
+      ];
+
       Object.keys(processedValues).forEach(key => {
-        if (standardKeys.includes(key)) {
-          standardData[key] = processedValues[key];
-        } else if (!key.endsWith('_other')) {
-          additionalData[key] = processedValues[key];
+        if (key.endsWith('_other')) return;
+        const val = processedValues[key];
+        if (val === undefined || val === null) return;
+
+        additionalData[key] = val;
+
+        const matchedField = allFormFields.find(f => f.id === key);
+        const normKey = String(key).toLowerCase();
+        const normLabel = String(matchedField?.label || '').toLowerCase();
+
+        if (key === 'first_name') standardData.first_name = val;
+        else if (key === 'last_name') standardData.last_name = val;
+        else if (key === 'email') standardData.email = val;
+        else if (key === 'category_id') standardData.category_id = val;
+
+        else if (key === 'company' || normKey === 'empresa' || normKey.includes('company') || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) {
+          standardData.company = val;
+          additionalData.company = val;
+          additionalData.empresa = val;
+        }
+        else if (key === 'phone' || normKey.includes('telef') || normKey.includes('phone') || normKey.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) {
+          standardData.phone = val;
+          additionalData.phone = val;
+          additionalData.telefono = val;
+        }
+        else if (key === 'job_title' || normKey.includes('cargo') || normKey.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto') || normLabel.includes('job')) {
+          standardData.job_title = val;
+          additionalData.job_title = val;
+          additionalData.cargo = val;
         }
       });
 
       const res = await api.public.register(eventId, {
         ...standardData,
+        phone: standardData.phone || undefined,
+        company: standardData.company || undefined,
+        job_title: standardData.job_title || undefined,
         additional_data: additionalData,
         invitation_code: invitationCode || undefined
       });

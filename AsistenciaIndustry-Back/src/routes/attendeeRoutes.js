@@ -19,26 +19,33 @@ router.get('/:eventId/form-submissions', requirePermission('VIEW_GUESTS'), async
       status
     });
 
-    const formattedSubmissions = rawAttendees.map(att => ({
-      id: att.id,
-      event_id: att.event_id,
-      first_name: att.first_name,
-      last_name: att.last_name,
-      full_name: `${att.first_name} ${att.last_name}`.trim(),
-      email: att.email,
-      company: att.company,
-      job_title: att.job_title,
-      phone: att.phone || att.additional_data?.phone || att.additional_data?.telefono || '',
-      category_id: att.category_id,
-      category_name: att.event_categories ? att.event_categories.name : null,
-      invitation_code: att.invitations ? att.invitations.code : null,
-      status: att.status, // 'pending', 'confirmed', 'declined'
-      qr_code: att.qr_code,
-      invitation_id: att.invitation_id,
-      is_public_registration: att.is_public_registration,
-      additional_data: att.additional_data || {},
-      created_at: att.created_at
-    }));
+    const formattedSubmissions = rawAttendees.map(att => {
+      const addData = att.additional_data || {};
+      const companyVal = att.company || addData.company || addData.empresa || addData.organizacion || addData.company_name || '';
+      const jobVal = att.job_title || addData.job_title || addData.cargo || addData.puesto || '';
+      const phoneVal = att.phone || addData.phone || addData.telefono || addData.celular || addData.movil || '';
+
+      return {
+        id: att.id,
+        event_id: att.event_id,
+        first_name: att.first_name,
+        last_name: att.last_name,
+        full_name: `${att.first_name || ''} ${att.last_name || ''}`.trim(),
+        email: att.email,
+        company: companyVal,
+        job_title: jobVal,
+        phone: phoneVal,
+        category_id: att.category_id,
+        category_name: att.event_categories ? att.event_categories.name : null,
+        invitation_code: att.invitations ? att.invitations.code : null,
+        status: att.status, // 'pending', 'confirmed', 'declined'
+        qr_code: att.qr_code,
+        invitation_id: att.invitation_id,
+        is_public_registration: att.is_public_registration,
+        additional_data: addData,
+        created_at: att.created_at
+      };
+    });
 
     const summary = {
       total_submissions: formattedSubmissions.length,
