@@ -568,96 +568,96 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     return null;
   };
 
-  // Dynamic column builder based on eventFormConfig with deduplication by semantics
-  const activeFormFields = [];
-  const seenTypes = new Set();
-
-  if (eventFormConfig && (eventFormConfig.fields || eventFormConfig.custom_fields)) {
-    const bFields = (eventFormConfig.fields || []).filter(f => f.visible && !['first_name', 'last_name', 'email', 'category'].includes(f.id));
-    const cFields = (eventFormConfig.custom_fields || []).filter(f => f.visible);
-    
-    const combined = [...bFields, ...cFields].sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
-
-    combined.forEach(f => {
-      const normId = String(f.id).toLowerCase();
-      const normLabel = String(f.label || '').toLowerCase();
-
-      let fieldType = 'custom_' + f.id;
-      if (f.id === 'company' || normId === 'empresa' || normId.includes('company') || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) {
-        fieldType = 'company';
-      } else if (f.id === 'phone' || normId.includes('telef') || normId.includes('phone') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) {
-        fieldType = 'phone';
-      } else if (f.id === 'job_title' || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto') || normLabel.includes('job')) {
-        fieldType = 'job_title';
-      }
-
-      if (!seenTypes.has(fieldType)) {
-        seenTypes.add(fieldType);
-        activeFormFields.push({ ...f, _fieldType: fieldType });
-      }
-    });
-  } else {
-    activeFormFields.push(
-      { id: 'company', label: 'Empresa', _fieldType: 'company' },
-      { id: 'phone', label: 'Teléfono', _fieldType: 'phone' },
-      { id: 'job_title', label: 'Cargo / Puesto', _fieldType: 'job_title' }
-    );
-  }
-
-  const dynamicColumns = activeFormFields.map(field => {
-    const fType = field._fieldType || '';
-
-    return {
-      title: field.label || field.id,
-      key: field.id,
+  // 1. Guaranteed Core Form Columns (Empresa, Cargo, Teléfono, Categoría del Formulario)
+  const baseFormColumns = [
+    {
+      title: 'Empresa',
+      key: 'company',
       render: (_, record) => {
         const addData = record.additional_data || {};
-
-        // 1. Empresa / Company
-        if (fType === 'company') {
-          const comp = record.company || record.guest_company || record.empresa || getFlexibleValue(addData, 'company', field.label || 'empresa') || getFlexibleValue(addData, 'empresa', 'organización');
-          if (!comp) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-          return <Text strong style={{ color: '#1e293b' }}>{String(comp)}</Text>;
-        }
-
-        // 2. Teléfono / Phone
-        if (fType === 'phone') {
-          const ph = record.phone || record.telefono || getFlexibleValue(addData, 'phone', field.label || 'teléfono') || getFlexibleValue(addData, 'telefono', 'celular') || getFlexibleValue(addData, 'movil', 'número de teléfono');
-          if (!ph) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-          return (
-            <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
-              <PhoneOutlined style={{ marginRight: '6px', color: '#10b981' }} />
-              {formatPhone(ph)}
-            </Text>
-          );
-        }
-
-        // 3. Cargo / Job Title
-        if (fType === 'job_title') {
-          const job = record.job_title || getFlexibleValue(addData, 'job_title', field.label || 'cargo') || getFlexibleValue(addData, 'cargo', 'puesto');
-          if (!job) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-          return <Text style={{ fontSize: '0.85rem', color: '#475569' }}>{String(job)}</Text>;
-        }
-
-        // 4. Custom Field (e.g. Dropdown, Text, Checkbox, Categoria)
-        let val = getFlexibleValue(addData, field.id, field.label) || record[field.id];
-        if (val === undefined || val === null || String(val).trim() === '') {
-          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-        }
-
+        const comp = record.company || record.guest_company || record.empresa || getFlexibleValue(addData, 'company', 'empresa') || getFlexibleValue(addData, 'empresa', 'organización') || getFlexibleValue(addData, 'organizacion', 'company_name');
+        if (!comp) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        return <Text strong style={{ color: '#1e293b' }}>{String(comp)}</Text>;
+      }
+    },
+    {
+      title: 'Cargo / Puesto',
+      key: 'job_title',
+      render: (_, record) => {
+        const addData = record.additional_data || {};
+        const job = record.job_title || getFlexibleValue(addData, 'job_title', 'cargo') || getFlexibleValue(addData, 'cargo', 'puesto') || getFlexibleValue(addData, 'puesto', 'job');
+        if (!job) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        return <Text style={{ fontSize: '0.85rem', color: '#475569' }}>{String(job)}</Text>;
+      }
+    },
+    {
+      title: 'Teléfono',
+      key: 'phone',
+      render: (_, record) => {
+        const addData = record.additional_data || {};
+        const ph = record.phone || record.telefono || getFlexibleValue(addData, 'phone', 'teléfono') || getFlexibleValue(addData, 'telefono', 'celular') || getFlexibleValue(addData, 'movil', 'número de teléfono');
+        if (!ph) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+        return (
+          <Text style={{ fontSize: '0.85rem', fontWeight: '500', color: '#1e293b' }}>
+            <PhoneOutlined style={{ marginRight: '6px', color: '#10b981' }} />
+            {formatPhone(ph)}
+          </Text>
+        );
+      }
+    },
+    {
+      title: 'Categoría del Formulario',
+      key: 'form_category',
+      render: (_, record) => {
+        const addData = record.additional_data || {};
+        const formCat = record.form_category || 
+                        getFlexibleValue(addData, 'categoria', 'category') || 
+                        getFlexibleValue(addData, 'tipo', 'categoría_formulario') || 
+                        getFlexibleValue(addData, 'categoria_formulario', 'categoría') || 
+                        record.category_name || 
+                        record.internal_category;
+        if (!formCat) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         return (
           <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
-            {String(val)}
+            🌐 {String(formCat)}
           </Tag>
         );
       }
-    };
-  });
+    }
+  ];
 
-  const hasDynamicFormCat = activeFormFields.some(f => {
-    const l = String(f.label || '').toLowerCase();
-    return l.includes('categoria') || l.includes('categoría');
-  });
+  // 2. Additional Custom Fields from eventFormConfig.custom_fields (e.g. DPI, Acompañante, etc.)
+  const customFormColumns = [];
+  if (eventFormConfig && Array.isArray(eventFormConfig.custom_fields)) {
+    eventFormConfig.custom_fields.forEach(cf => {
+      if (cf.visible === false) return;
+      const normId = String(cf.id).toLowerCase();
+      const normLabel = String(cf.label || '').toLowerCase();
+
+      // Skip if custom field is semantically Empresa, Phone, Cargo, or Categoría (already in baseFormColumns)
+      if (normId.includes('company') || normId === 'empresa' || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) return;
+      if (normId.includes('phone') || normId.includes('telef') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) return;
+      if (normId.includes('job') || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto')) return;
+      if (normId.includes('categor') || normLabel.includes('categor')) return;
+
+      customFormColumns.push({
+        title: cf.label || cf.id,
+        key: cf.id,
+        render: (_, record) => {
+          const addData = record.additional_data || {};
+          const val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
+          if (val === undefined || val === null || String(val).trim() === '') {
+            return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
+          }
+          return (
+            <Tag color="purple" style={{ borderRadius: '4px', fontWeight: '500' }}>
+              {String(val)}
+            </Tag>
+          );
+        }
+      });
+    });
+  }
 
   const columns = [
     {
@@ -705,22 +705,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         );
       }
     },
-    ...dynamicColumns,
-    ...(!hasDynamicFormCat ? [{
-      title: 'Categoría del Formulario',
-      key: 'form_category',
-      render: (_, record) => {
-        const formCat = record.form_category || getFlexibleValue(record.additional_data, 'categoria', 'category') || getFlexibleValue(record.additional_data, 'tipo', 'categoría_formulario');
-        if (!formCat) {
-          return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-        }
-        return (
-          <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
-            🌐 {formCat}
-          </Tag>
-        );
-      }
-    }] : []),
+    ...baseFormColumns,
+    ...customFormColumns,
     {
       title: 'Estado de Registro / RSVP',
       dataIndex: 'status',
