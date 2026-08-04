@@ -31,6 +31,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const canAssignBulkCategory = hasPerm('ASSIGN_BULK_CATEGORY') || hasPerm('ASSIGN_GUEST_CATEGORY') || hasPerm('EDIT_GUEST_INFO') || hasPerm('EDIT_GUEST');
   const canResendSingleQR = hasPerm('RESEND_QR_EMAIL_SINGLE');
   const canResendBulkQR = hasPerm('RESEND_QR_EMAIL_BULK');
+  const canDeleteGuest = hasPerm('DELETE_GUEST');
 
   const formatPhone = (input) => {
     if (!input) return '';
@@ -263,6 +264,38 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     } catch (err) {
       message.error(err.message);
+    }
+  };
+
+  const handleDeleteGuest = async (record) => {
+    try {
+      let deleted = false;
+      if (record.invitation_id) {
+        const res = await api.invitations.delete(record.invitation_id);
+        if (res.success) deleted = true;
+      }
+      if (record.attendee_id) {
+        const resAtt = await api.attendees.delete(record.attendee_id);
+        if (resAtt.success) deleted = true;
+      }
+      if (!deleted && record.id) {
+        try {
+          const res = await api.invitations.delete(record.id);
+          if (res.success) deleted = true;
+        } catch (e) {
+          const resAtt = await api.attendees.delete(record.id);
+          if (resAtt.success) deleted = true;
+        }
+      }
+
+      if (deleted) {
+        message.success('Invitado eliminado correctamente.');
+        fetchSubmissions(true);
+      } else {
+        message.error('No se pudo eliminar el invitado.');
+      }
+    } catch (err) {
+      message.error('Error al eliminar invitado: ' + err.message);
     }
   };
 
@@ -758,6 +791,20 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
                 cancelText="Cancelar"
               >
                 <Button size="small" icon={<ReloadOutlined />} />
+              </Popconfirm>
+            </Tooltip>
+          )}
+          {canDeleteGuest && (
+            <Tooltip title="Eliminar Invitado">
+              <Popconfirm
+                title="¿Eliminar invitado?"
+                description="¿Estás seguro de eliminar a este invitado? Esta acción enviará el registro a la papelera."
+                onConfirm={() => handleDeleteGuest(record)}
+                okText="Sí, eliminar"
+                cancelText="Cancelar"
+                okButtonProps={{ danger: true }}
+              >
+                <Button size="small" danger icon={<DeleteOutlined />} />
               </Popconfirm>
             </Tooltip>
           )}

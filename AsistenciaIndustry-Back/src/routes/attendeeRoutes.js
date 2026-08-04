@@ -199,7 +199,7 @@ router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIE
 });
 
 // DELETE /api/attendees/:id & /api/events/:eventId/attendees/:id - Eliminar asistente
-router.delete(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIEW_GUESTS'), async (req, res) => {
+router.delete(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('DELETE_GUEST'), async (req, res) => {
   try {
     const { id } = req.params;
     const { permanent } = req.query;
