@@ -568,6 +568,31 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     return null;
   };
 
+  const resolveCategoryName = (record) => {
+    if (!record) return null;
+    const addData = record.additional_data || {};
+
+    let catVal = getFlexibleValue(addData, 'categoria', 'category') || 
+                 getFlexibleValue(addData, 'tipo', 'categoría_formulario') || 
+                 getFlexibleValue(addData, 'categoria_formulario', 'categoría') || 
+                 record.form_category || 
+                 record.category_name || 
+                 record.internal_category;
+
+    if (catVal && String(catVal).trim() !== '') return catVal;
+
+    if (record.event_categories && record.event_categories.name) {
+      return record.event_categories.name;
+    }
+
+    if (record.category_id && Array.isArray(categories)) {
+      const found = categories.find(c => c.id === record.category_id);
+      if (found && found.name) return found.name;
+    }
+
+    return null;
+  };
+
   // 1. Guaranteed Core Form Columns (Empresa, Cargo, Teléfono, Categoría del Formulario)
   const baseFormColumns = [
     {
@@ -609,13 +634,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       title: 'Categoría del Formulario',
       key: 'form_category',
       render: (_, record) => {
-        const addData = record.additional_data || {};
-        const formCat = record.form_category || 
-                        getFlexibleValue(addData, 'categoria', 'category') || 
-                        getFlexibleValue(addData, 'tipo', 'categoría_formulario') || 
-                        getFlexibleValue(addData, 'categoria_formulario', 'categoría') || 
-                        record.category_name || 
-                        record.internal_category;
+        const formCat = resolveCategoryName(record);
         if (!formCat) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
         return (
           <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
@@ -643,11 +662,12 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         title: cf.label || cf.id,
         key: cf.id,
         render: (_, record) => {
+          const addData = record.additional_data || {};
           let val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
           
-          // Si el campo personalizado es Categoria y aún no tiene respuesta de formulario, usar categoría interna del invitado
+          // Si el campo personalizado es Categoria y aún no tiene respuesta de formulario, usar resolución inteligente de categoría del evento
           if ((val === undefined || val === null || String(val).trim() === '') && (normLabel.includes('categor') || normId.includes('categor'))) {
-            val = record.form_category || record.category_name || record.internal_category || (record.event_categories ? record.event_categories.name : null);
+            val = resolveCategoryName(record);
           }
 
           if (val === undefined || val === null || String(val).trim() === '') {
