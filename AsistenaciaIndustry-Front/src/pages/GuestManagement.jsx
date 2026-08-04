@@ -626,31 +626,31 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
   ];
 
-  // 2. Additional Custom Fields from eventFormConfig.custom_fields (e.g. DPI, Acompañante, etc.)
+  // 2. Additional Custom Fields from eventFormConfig.custom_fields (e.g. Categoria custom dropdown, DPI, Acompañante, etc.)
   const customFormColumns = [];
   if (eventFormConfig && Array.isArray(eventFormConfig.custom_fields)) {
     eventFormConfig.custom_fields.forEach(cf => {
       if (cf.visible === false) return;
       const normId = String(cf.id).toLowerCase();
-      const normLabel = String(cf.label || '').toLowerCase();
+      const normLabel = String(cf.label || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-      // Skip if custom field is semantically Empresa, Phone, Cargo, or Categoría (already in baseFormColumns)
+      // Skip if custom field is semantically Empresa, Phone, or Cargo (already in baseFormColumns with fallbacks)
       if (normId.includes('company') || normId === 'empresa' || normLabel.includes('empresa') || normLabel.includes('company') || normLabel.includes('organiza')) return;
       if (normId.includes('phone') || normId.includes('telef') || normId.includes('celular') || normLabel.includes('telef') || normLabel.includes('phone') || normLabel.includes('celular') || normLabel.includes('movil')) return;
       if (normId.includes('job') || normId.includes('cargo') || normId.includes('puesto') || normLabel.includes('cargo') || normLabel.includes('puesto')) return;
-      if (normId.includes('categor') || normLabel.includes('categor')) return;
 
       customFormColumns.push({
         title: cf.label || cf.id,
         key: cf.id,
         render: (_, record) => {
           const addData = record.additional_data || {};
-          const val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
+          let val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
+          
           if (val === undefined || val === null || String(val).trim() === '') {
             return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
           }
           return (
-            <Tag color="purple" style={{ borderRadius: '4px', fontWeight: '500' }}>
+            <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
               {String(val)}
             </Tag>
           );
