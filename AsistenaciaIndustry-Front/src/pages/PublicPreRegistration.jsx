@@ -110,6 +110,11 @@ export default function PublicPreRegistration({ eventId: propEventId }) {
           additionalData.job_title = val;
           additionalData.cargo = val;
         }
+        else if (key === 'category' || normKey.includes('categor') || normLabel.includes('categor')) {
+          additionalData.categoria = val;
+          additionalData.category = val;
+          additionalData.form_category = val;
+        }
       });
 
       const res = await api.public.register(eventId, {

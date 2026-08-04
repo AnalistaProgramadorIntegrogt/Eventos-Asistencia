@@ -643,9 +643,13 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         title: cf.label || cf.id,
         key: cf.id,
         render: (_, record) => {
-          const addData = record.additional_data || {};
           let val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
           
+          // Si el campo personalizado es Categoria y aún no tiene respuesta de formulario, usar categoría interna del invitado
+          if ((val === undefined || val === null || String(val).trim() === '') && (normLabel.includes('categor') || normId.includes('categor'))) {
+            val = record.form_category || record.category_name || record.internal_category || (record.event_categories ? record.event_categories.name : null);
+          }
+
           if (val === undefined || val === null || String(val).trim() === '') {
             return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
           }
