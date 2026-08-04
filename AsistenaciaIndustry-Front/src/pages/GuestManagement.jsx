@@ -593,7 +593,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     return null;
   };
 
-  // 1. Guaranteed Core Form Columns (Empresa, Cargo, Teléfono, Categoría del Formulario)
+  // 1. Guaranteed Core Form Columns (Empresa, Cargo, Teléfono)
   const baseFormColumns = [
     {
       title: 'Empresa',
@@ -629,19 +629,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           </Text>
         );
       }
-    },
-    {
-      title: 'Categoría del Formulario',
-      key: 'form_category',
-      render: (_, record) => {
-        const formCat = resolveCategoryName(record);
-        if (!formCat) return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
-        return (
-          <Tag color="cyan" style={{ borderRadius: '4px', fontWeight: '500' }}>
-            🌐 {String(formCat)}
-          </Tag>
-        );
-      }
     }
   ];
 
@@ -664,11 +651,6 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         render: (_, record) => {
           const addData = record.additional_data || {};
           let val = getFlexibleValue(addData, cf.id, cf.label) || record[cf.id];
-          
-          // Si el campo personalizado es Categoria y aún no tiene respuesta de formulario, usar resolución inteligente de categoría del evento
-          if ((val === undefined || val === null || String(val).trim() === '') && (normLabel.includes('categor') || normId.includes('categor'))) {
-            val = resolveCategoryName(record);
-          }
 
           if (val === undefined || val === null || String(val).trim() === '') {
             return <Text type="secondary" style={{ color: '#94a3b8' }}>—</Text>;
