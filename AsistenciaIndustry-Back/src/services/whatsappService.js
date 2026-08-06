@@ -120,7 +120,7 @@ export const createInstance = async () => {
   });
   const data = await response.json();
   if (!response.ok) {
-    // If instance already exists, it might return an error, which is fine to ignore if we just wanted to create it.
+
     if (data?.response?.message?.includes('already exists')) {
        return { success: true, message: 'Instance already exists' };
     }

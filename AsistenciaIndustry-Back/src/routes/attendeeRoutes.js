@@ -302,20 +302,85 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
       return res.status(400).json({ success: false, error: 'El número de teléfono es requerido.' });
     }
 
-    const attendee = await AttendeeModel.findById(id);
-    if (!attendee) {
-      return res.status(404).json({ success: false, error: 'Asistente no encontrado' });
+    let targetRecord = await AttendeeModel.findById(id);
+    let eventId = targetRecord?.event_id;
+
+    if (!targetRecord) {
+      const { InvitationModel } = await import('../models/invitationModel.js');
+      const inv = await InvitationModel.findById(id);
+      if (inv) {
+        targetRecord = {
+          first_name: inv.guest_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim() || 'Invitado',
+          last_name: '',
+          qr_code: inv.code || inv.invitation_code || inv.id,
+          event_id: inv.event_id
+        };
+        eventId = inv.event_id;
+      }
+    }
+
+    if (!targetRecord) {
+      return res.status(404).json({ success: false, error: 'Asistente o invitación no encontrada' });
     }
 
     const { EventModel } = await import('../models/eventModel.js');
-    const event = await EventModel.findById(attendee.event_id);
-    const eventName = event ? event.name : 'nuestro evento';
+    const event = await EventModel.findById(eventId || targetRecord.event_id);
+    const eventName = event ? event.name : 'el evento';
+    const eventLocation = event?.location || 'Por confirmar';
+
+    const formatDateGT = (dateStr) => {
+      if (!dateStr) return 'Por confirmar';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const formatted = d.toLocaleDateString('es-GT', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+      } catch (e) {
+        return dateStr || 'Por confirmar';
+      }
+    };
+
+    const formatTimeGT = (dateStr) => {
+      if (!dateStr) return 'Por confirmar';
+      try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return 'Por confirmar';
+        return d.toLocaleTimeString('es-GT', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+      } catch (e) {
+        return 'Por confirmar';
+      }
+    };
+
+    const fechaStr = formatDateGT(event?.start_date);
+    const horaStr = formatTimeGT(event?.start_date);
+
+    const guestName = (targetRecord.guest_name || `${targetRecord.first_name || ''} ${targetRecord.last_name || ''}`).trim() || 'Invitado(a)';
+
+    const caption = `Estimado(a) ${guestName},
+
+Queremos recordarte tu asistencia a ${eventName}. Será un honor contar con tu presencia en este proyecto que representa una nueva visión para el desarrollo industrial en Guatemala.
+
+Para tu comodidad, compartimos nuevamente tu código QR de acceso, el cual será requerido para ingresar al evento.
+
+📅 Fecha: ${fechaStr}
+
+🕒 Hora: ${horaStr}
+
+📍 Lugar: ${eventLocation}
+
+📲 Código QR: (Adjunto)`;
 
     const { sendQRWhatsApp } = await import('../services/whatsappService.js');
-    const qrDataUrl = await generateQRDataURL(attendee.qr_code);
-
-    const firstName = attendee.first_name || 'Invitado';
-    const caption = `¡Hola ${firstName}!\n\nAdjunto encontrarás tu Código QR para ingresar a *${eventName}*.\n\nPor favor, preséntalo en la entrada para tu registro.`;
+    const qrDataUrl = await generateQRDataURL(targetRecord.qr_code || targetRecord.id);
 
     await sendQRWhatsApp(phone, qrDataUrl, caption);
 
