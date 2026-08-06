@@ -375,9 +375,7 @@ Para tu comodidad, compartimos nuevamente tu código QR de acceso, el cual será
 
 🕒 Hora: ${horaStr}
 
-📍 Lugar: ${eventLocation}
-
-📲 Código QR: (Adjunto)`;
+📍 Lugar: ${eventLocation}`;
 
     const { sendQRWhatsApp } = await import('../services/whatsappService.js');
     const qrDataUrl = await generateQRDataURL(targetRecord.qr_code || targetRecord.id);
