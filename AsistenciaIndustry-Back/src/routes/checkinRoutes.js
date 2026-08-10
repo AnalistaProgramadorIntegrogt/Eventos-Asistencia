@@ -13,26 +13,102 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
       return res.status(400).json({ success: false, status_code: 'INVALID', message: 'Código QR o evento no proporcionado.' });
     }
 
-    const cleanCode = String(qr_code).trim();
+    const rawCode = String(qr_code).trim();
+    const dashNormalized = rawCode.replace(/['"`]/g, '-');
+    const unhyphenated = rawCode.replace(/['"`\-\s]/g, '');
+
+    const candidates = Array.from(new Set([rawCode, dashNormalized, unhyphenated, rawCode.toUpperCase(), dashNormalized.toUpperCase()])).filter(Boolean);
+
     const currentOperatorId = req.user ? req.user.id : operator_id;
     const currentOperatorName = req.user ? req.user.full_name : (operator_name || 'Operador QR');
 
-    // 1. Buscar el preregistro por código QR y obtener datos del evento y categoría
-    const { data: attendee, error: attendeeError } = await supabase
-      .from('attendees')
-      .select('*, events(id, name, start_date, end_date), event_categories(name)')
-      .eq('event_id', event_id)
-      .eq('qr_code', cleanCode)
-      .single();
+    // 1. Buscar en el evento actual por qr_code, id (si es UUID) o email
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let foundAttendee = null;
 
-    // Código Inválido
-    if (attendeeError || !attendee) {
+    for (const cand of candidates) {
+      let query = supabase
+        .from('attendees')
+        .select('*, events(id, name, start_date, end_date), event_categories(name)')
+        .eq('event_id', event_id)
+        .is('deleted_at', null);
+
+      if (uuidRegex.test(cand)) {
+        query = query.or(`qr_code.eq.${cand},id.eq.${cand},email.eq.${cand}`);
+      } else {
+        query = query.or(`qr_code.eq.${cand},email.eq.${cand}`);
+      }
+
+      const { data } = await query.limit(1);
+      if (data && data.length > 0) {
+        foundAttendee = data[0];
+        break;
+      }
+    }
+
+    // 1.5. Si no se encuentra en attendees del evento actual, buscar en invitations del evento actual
+    if (!foundAttendee) {
+      for (const cand of candidates) {
+        const { data: invs } = await supabase
+          .from('invitations')
+          .select('*, events(id, name, start_date, end_date), event_categories(name)')
+          .eq('event_id', event_id)
+          .is('deleted_at', null)
+          .or(`code.eq.${cand},invitation_code.eq.${cand},guest_email.eq.${cand}`)
+          .limit(1);
+
+        if (invs && invs.length > 0) {
+          const inv = invs[0];
+          foundAttendee = {
+            id: inv.id,
+            first_name: inv.guest_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim() || 'Invitado',
+            last_name: '',
+            company: inv.company || inv.guest_company || '',
+            email: inv.guest_email || inv.email || '',
+            status: inv.status || 'pending',
+            events: inv.events,
+            event_categories: inv.event_categories
+          };
+          break;
+        }
+      }
+    }
+
+    // 1.8. Si aún NO se encuentra en este evento, BUSCAR EN OTROS EVENTOS para dar mensaje inteligente "WRONG_EVENT"
+    if (!foundAttendee) {
+      for (const cand of candidates) {
+        let otherQuery = supabase
+          .from('attendees')
+          .select('*, events(id, name), event_categories(name)')
+          .is('deleted_at', null);
+
+        if (uuidRegex.test(cand)) {
+          otherQuery = otherQuery.or(`qr_code.eq.${cand},id.eq.${cand},email.eq.${cand}`);
+        } else {
+          otherQuery = otherQuery.or(`qr_code.eq.${cand},email.eq.${cand}`);
+        }
+
+        const { data: otherAtts } = await otherQuery.limit(1);
+        if (otherAtts && otherAtts.length > 0) {
+          const other = otherAtts[0];
+          const otherEvName = other.events?.name || 'otro evento';
+          const otherName = `${other.first_name || ''} ${other.last_name || ''}`.trim() || other.guest_name || 'Invitado';
+          return res.status(400).json({
+            success: false,
+            status_code: 'WRONG_EVENT',
+            message: `El código "${dashNormalized}" pertenece al asistente "${otherName}" en el evento "${otherEvName}", no en el evento actual.`
+          });
+        }
+      }
+
       return res.status(404).json({
         success: false,
         status_code: 'INVALID',
-        message: 'Código inválido o asistente no registrado para este evento.'
+        message: `El código "${dashNormalized}" no corresponde a ningún asistente registrado en este evento.`
       });
     }
+
+    const attendee = foundAttendee;
 
     const event = attendee.events;
     const eventName = event ? event.name : 'el evento';

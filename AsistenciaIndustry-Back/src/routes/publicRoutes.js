@@ -527,31 +527,95 @@ router.post('/events/:id/checkin', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Evento no encontrado' });
     }
 
-    // 2. Buscar asistente por qr_code o id o email
-    // NOTA: 'id' es tipo UUID. Si enviamos un string como 'ATT-1234' a id.eq, la base de datos lanza error.
-    // Por lo tanto, solo buscamos por 'id' si el searchCode tiene formato UUID.
+    const rawCode = (qr_code || code || '').trim();
+    const dashNormalized = rawCode.replace(/['"`]/g, '-');
+    const unhyphenated = rawCode.replace(/['"`\-\s]/g, '');
+
+    const candidates = Array.from(new Set([rawCode, dashNormalized, unhyphenated, rawCode.toUpperCase(), dashNormalized.toUpperCase()])).filter(Boolean);
+
+    // 2. Buscar asistente por qr_code o id o email en el evento actual
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const isUuid = uuidRegex.test(searchCode);
-    
-    let orQuery = `qr_code.eq.${searchCode},email.eq.${searchCode}`;
-    if (isUuid) {
-      orQuery += `,id.eq.${searchCode}`;
+    let attendee = null;
+
+    for (const cand of candidates) {
+      let query = supabase
+        .from('attendees')
+        .select('*, event_categories(name)')
+        .eq('event_id', id)
+        .is('deleted_at', null);
+
+      if (uuidRegex.test(cand)) {
+        query = query.or(`qr_code.eq.${cand},id.eq.${cand},email.eq.${cand}`);
+      } else {
+        query = query.or(`qr_code.eq.${cand},email.eq.${cand}`);
+      }
+
+      const { data } = await query.limit(1);
+      if (data && data.length > 0) {
+        attendee = data[0];
+        break;
+      }
     }
 
-    const { data: attendee, error: attError } = await supabase
-      .from('attendees')
-      .select('*, event_categories(name)')
-      .eq('event_id', id)
-      .or(orQuery)
-      .is('deleted_at', null)
-      .single();
+    // 2.2 Si no se encuentra en attendees, buscar en invitations del evento actual
+    if (!attendee) {
+      for (const cand of candidates) {
+        const { data: invs } = await supabase
+          .from('invitations')
+          .select('*, event_categories(name)')
+          .eq('event_id', id)
+          .is('deleted_at', null)
+          .or(`code.eq.${cand},invitation_code.eq.${cand},guest_email.eq.${cand}`)
+          .limit(1);
 
-    if (attError || !attendee) {
-      if (attError) console.error('Checkin query error:', attError);
+        if (invs && invs.length > 0) {
+          const inv = invs[0];
+          attendee = {
+            id: inv.id,
+            first_name: inv.guest_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim() || 'Invitado',
+            last_name: '',
+            company: inv.company || inv.guest_company || '',
+            email: inv.guest_email || inv.email || '',
+            status: inv.status || 'pending',
+            event_categories: inv.event_categories
+          };
+          break;
+        }
+      }
+    }
+
+    // 2.4 Si no se encuentra en este evento, buscar en OTROS EVENTOS para advertir WRONG_EVENT
+    if (!attendee) {
+      for (const cand of candidates) {
+        let otherQuery = supabase
+          .from('attendees')
+          .select('*, events(id, name), event_categories(name)')
+          .is('deleted_at', null);
+
+        if (uuidRegex.test(cand)) {
+          otherQuery = otherQuery.or(`qr_code.eq.${cand},id.eq.${cand},email.eq.${cand}`);
+        } else {
+          otherQuery = otherQuery.or(`qr_code.eq.${cand},email.eq.${cand}`);
+        }
+
+        const { data: otherAtts } = await otherQuery.limit(1);
+        if (otherAtts && otherAtts.length > 0) {
+          const other = otherAtts[0];
+          const otherEvName = other.events?.name || 'otro evento';
+          const otherName = `${other.first_name || ''} ${other.last_name || ''}`.trim() || other.guest_name || 'Invitado';
+          return res.status(400).json({
+            success: false,
+            status_code: 'WRONG_EVENT',
+            message: `El código "${dashNormalized}" pertenece al asistente "${otherName}" en el evento "${otherEvName}", no en el evento actual.`,
+            other_event_name: otherEvName
+          });
+        }
+      }
+
       return res.status(404).json({
         success: false,
         status_code: 'INVALID',
-        message: `El código "${searchCode}" no corresponde a ningún asistente registrado en este evento.`
+        message: `El código "${dashNormalized}" no corresponde a ningún asistente registrado en este evento.`
       });
     }
 

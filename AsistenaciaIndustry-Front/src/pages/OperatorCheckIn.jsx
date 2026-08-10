@@ -137,6 +137,14 @@ export default function OperatorCheckIn({ selectedEventId, currentUser }) {
             />
           )}
 
+          {scanResult.status_code === 'WRONG_EVENT' && (
+            <Result
+              status="warning"
+              title={<Title level={2} style={{ color: '#d97706', margin: 0, fontWeight: '800' }}>CÓDIGO PERTENECE A OTRO EVENTO</Title>}
+              subTitle={<Title level={4} style={{ color: '#000000', margin: '8px 0' }}>{scanResult.message}</Title>}
+            />
+          )}
+
           {scanResult.status_code === 'NOT_STARTED' && (
             <Result
               status="warning"

@@ -311,16 +311,18 @@ export default function PublicQRScanner({ eventId: propEventId }) {
   const win  = scanResult?.status_code === 'SUCCESS';
   const used = scanResult?.status_code === 'ALREADY_USED';
   const notStarted = scanResult?.status_code === 'NOT_STARTED';
+  const wrongEvent = scanResult?.status_code === 'WRONG_EVENT';
 
   const STATUS_TEXT = ok
     ? (win  ? (cfg.status_label_success      || 'Entrada registrada')
     : used   ? (cfg.status_label_already_used || 'Entrada ya registrada')
     : notStarted ? 'Evento no iniciado'
+    : wrongEvent ? 'Código de otro evento'
              : (cfg.status_label_invalid      || 'Código no válido'))
     : null;
 
   const STATUS_COLOR = ok
-    ? (win ? (sty.status_color || '#3D9B35') : used ? '#D97706' : notStarted ? '#D97706' : '#DC2626')
+    ? (win ? (sty.status_color || '#3D9B35') : used ? '#D97706' : notStarted ? '#D97706' : wrongEvent ? '#D97706' : '#DC2626')
     : '#3D9B35';
 
   const NOMBRE = ok
