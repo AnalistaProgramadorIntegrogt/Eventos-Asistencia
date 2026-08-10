@@ -67,12 +67,6 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       return n.includes('sin categor');
     };
 
-    const isExcludedCat = (name) => {
-      if (!name) return false;
-      const n = name.trim().toLowerCase();
-      return n === 'vip' || n === 'general' || n.includes('general /');
-    };
-
     // Obtener invitaciones activas con su categoría (fuente principal para VIPs)
     // NOTA: invitations no tiene columna "status", solo "is_active"
     const { data: activeInvitations } = await supabase
@@ -83,7 +77,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     const categoryStats = {};
     (allEventCategories || []).forEach(c => {
-      if (c.name && !isGenericCat(c.name) && !isExcludedCat(c.name)) {
+      if (c.name && !isGenericCat(c.name)) {
         categoryStats[c.name] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
       }
     });
@@ -91,15 +85,13 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
     let noCatStats = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
 
     // Procesar todos los asistentes para estadísticas de categoría
-    // status='confirmed' o 'checked_in' → invitado registrado/confirmado
+    // status='confirmed' o 'checked_in' o 'attended' → invitado registrado/confirmado
     (attendees || []).forEach(a => {
       const catName = a.event_categories?.name;
       const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'attended';
       const isCheckedIn = a.status === 'checked_in' || a.status === 'attended';
 
       if (catName && !isGenericCat(catName)) {
-        if (isExcludedCat(catName)) return; // Skip completely
-
         if (!categoryStats[catName]) {
           categoryStats[catName] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
         }
