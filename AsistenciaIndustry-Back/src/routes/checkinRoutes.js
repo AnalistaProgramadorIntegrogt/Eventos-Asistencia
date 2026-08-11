@@ -99,6 +99,24 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
             message: `El código "${dashNormalized}" pertenece al asistente "${otherName}" en el evento "${otherEvName}", no en el evento actual.`
           });
         }
+
+        const { data: otherInvs } = await supabase
+          .from('invitations')
+          .select('*, events(id, name), event_categories(name)')
+          .is('deleted_at', null)
+          .or(`code.eq.${cand},invitation_code.eq.${cand},guest_email.eq.${cand}`)
+          .limit(1);
+
+        if (otherInvs && otherInvs.length > 0) {
+          const otherInv = otherInvs[0];
+          const otherEvName = otherInv.events?.name || 'otro evento';
+          const otherName = otherInv.guest_name || `${otherInv.first_name || ''} ${otherInv.last_name || ''}`.trim() || 'Invitado';
+          return res.status(400).json({
+            success: false,
+            status_code: 'WRONG_EVENT',
+            message: `El código "${dashNormalized}" pertenece al asistente "${otherName}" en el evento "${otherEvName}", no en el evento actual.`
+          });
+        }
       }
 
       return res.status(404).json({
