@@ -278,7 +278,8 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
 
   const handleUpdateStatus = async (record, newStatus) => {
     try {
-      const res = await api.invitations.updateStatus(record.id, newStatus);
+      const targetId = record.invitation_id || record.id;
+      const res = await api.invitations.updateStatus(targetId, newStatus);
       if (res.success) {
         message.success(`Estado actualizado a "${newStatus === 'confirmed' ? 'Registrado / Confirmado' : newStatus === 'declined' ? 'Rechazado' : 'Pendiente'}".`);
         fetchSubmissions(true);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { supabase } from '../config/supabase.js';
 import { InvitationModel } from '../models/invitationModel.js';
+import { AttendeeModel } from '../models/attendeeModel.js';
 import { generateUniqueInvitationCode, generateUniqueAttendeeCode } from '../services/qrService.js';
 import { parseGuestsFromExcelBuffer } from '../services/excelService.js';
 import { sendQRTicketEmail } from '../services/emailService.js';
@@ -50,9 +51,16 @@ router.get('/invitations/:id', requirePermission('VIEW_GUESTS'), async (req, res
     const { id } = req.params;
     const { includeDeleted } = req.query;
 
-    const invitation = await InvitationModel.findById(id, {
+    let invitation = await InvitationModel.findById(id, {
       includeDeleted: includeDeleted === 'true'
     });
+
+    if (!invitation) {
+      const att = await AttendeeModel.findById(id, { includeDeleted: includeDeleted === 'true' });
+      if (att && att.invitation_id) {
+        invitation = await InvitationModel.findById(att.invitation_id, { includeDeleted: includeDeleted === 'true' });
+      }
+    }
 
     if (!invitation) {
       return res.status(404).json({ success: false, error: 'Invitación no encontrada' });
@@ -611,30 +619,65 @@ router.put('/invitations/:id/status', requirePermission(['EDIT_GUEST_RSVP', 'EDI
       return res.status(400).json({ success: false, error: 'El estado es requerido' });
     }
 
-    const inv = await InvitationModel.findById(id);
-    if (!inv) return res.status(404).json({ success: false, error: 'Invitación no encontrada' });
+    let inv = await InvitationModel.findById(id);
+    let existingAttendee = null;
 
-    // Buscar si existe un asistente
-    const { data: existingAttendee } = await supabase
-      .from('attendees')
-      .select('*')
-      .eq('invitation_id', id)
-      .limit(1)
-      .maybeSingle();
+    if (inv) {
+      // Buscar si existe un asistente para esta invitación
+      const { data } = await supabase
+        .from('attendees')
+        .select('*')
+        .eq('invitation_id', inv.id)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      existingAttendee = data;
+    } else {
+      // Si no se encuentra por id en invitations, buscar en la tabla attendees
+      const att = await AttendeeModel.findById(id);
+      if (att) {
+        existingAttendee = att;
+        if (att.invitation_id) {
+          inv = await InvitationModel.findById(att.invitation_id);
+        }
+      }
+    }
+
+    if (!inv && !existingAttendee) {
+      return res.status(404).json({ success: false, error: 'Invitación o asistente no encontrado' });
+    }
+
+    const previousStatus = existingAttendee ? existingAttendee.status : null;
+
+    // Si existe la invitación, mantener sincronizado el estado is_active (false si declinado, true si no declinado)
+    if (inv) {
+      const isActive = status !== 'declined';
+      if (inv.is_active !== isActive) {
+        await InvitationModel.update(inv.id, { is_active: isActive });
+      }
+    }
+
+    let updatedAttendeeId = null;
+    let targetEventId = inv ? inv.event_id : existingAttendee?.event_id;
+    let targetEmail = inv ? inv.guest_email : existingAttendee?.email;
+    let targetQrCode = existingAttendee?.qr_code || inv?.code;
 
     if (existingAttendee) {
-      // Actualizar estado del asistente
+      // Actualizar estado del asistente existente
       const { error: updErr } = await supabase
         .from('attendees')
         .update({ status })
         .eq('id', existingAttendee.id);
       
       if (updErr) throw updErr;
-    } else {
+      updatedAttendeeId = existingAttendee.id;
+    } else if (inv) {
       // Crear asistente con el estado proporcionado
       const rawName = inv.guest_name || 'Invitado VIP';
       const nameParts = rawName.trim().split(' ');
-      
+      const newQrCode = `VIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      targetQrCode = newQrCode;
+
       const attendeePayload = {
         event_id: inv.event_id,
         invitation_id: inv.id,
@@ -642,14 +685,48 @@ router.put('/invitations/:id/status', requirePermission(['EDIT_GUEST_RSVP', 'EDI
         first_name: nameParts[0] || 'Invitado',
         last_name: nameParts.slice(1).join(' ') || '',
         email: inv.guest_email || '',
-        qr_code: `VIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        qr_code: newQrCode,
         status: status,
         is_public_registration: false,
         additional_data: inv.additional_data || {}
       };
 
-      const { error: insErr } = await supabase.from('attendees').insert([attendeePayload]);
+      const { data: newAtt, error: insErr } = await supabase
+        .from('attendees')
+        .insert([attendeePayload])
+        .select()
+        .single();
+
       if (insErr) throw insErr;
+      if (newAtt) updatedAttendeeId = newAtt.id;
+    }
+
+    // Enviar correo de confirmación con ticket QR si cambió a 'confirmed'
+    if (status === 'confirmed' && previousStatus !== 'confirmed' && targetEmail) {
+      try {
+        const { sendQRTicketEmail } = await import('../services/emailService.js');
+        const { generateQRDataURL } = await import('../services/qrService.js');
+        const { EventModel } = await import('../models/eventModel.js');
+
+        const event = await EventModel.findById(targetEventId);
+        const qrDataUrl = targetQrCode ? await generateQRDataURL(targetQrCode) : null;
+        const attendeeName = inv ? (inv.guest_name || inv.guest_email) : `${existingAttendee?.first_name || ''} ${existingAttendee?.last_name || ''}`.trim() || targetEmail;
+
+        sendQRTicketEmail({
+          to: targetEmail,
+          attendeeName,
+          eventName: event ? event.name : 'Evento',
+          location: event ? event.location : '',
+          startDate: event ? event.start_date : null,
+          logoUrl: event ? event.logo_url : null,
+          bannerUrl: event ? event.banner_url : null,
+          qrCode: targetQrCode,
+          qrDataUrl,
+          emailConfig: event ? event.email_config : null
+        }).catch(err => console.error('Error enviando ticket QR tras actualización de estado:', err));
+      } catch (e) {
+        console.error('Error procesando envío de ticket QR:', e);
+      }
     }
 
     res.json({ success: true, message: 'Estado actualizado correctamente' });
