@@ -262,6 +262,7 @@ router.get('/events/:eventId/search', requirePermission('SCAN_QR'), async (req, 
 });
 
 // POST /api/checkin/manual - Marcar asistencia manualmente (Admin y Operador)
+// POST /api/checkin/manual - Marcar asistencia manualmente (Admin y Operador)
 router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, res) => {
   try {
     const { event_id, attendee_id, operator_id, operator_name } = req.body;
@@ -269,38 +270,79 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
     const currentOperatorId = req.user ? req.user.id : operator_id;
     const currentOperatorName = req.user ? req.user.full_name : (operator_name || 'Operador');
 
-    const { data: attendee } = await supabase
+    let { data: attendee } = await supabase
       .from('attendees')
       .select('*, events(id, name, start_date, end_date)')
       .eq('id', attendee_id)
-      .single();
+      .maybeSingle();
+
+    // Si no se encuentra en attendees, buscar en la tabla invitations
+    if (!attendee) {
+      const { data: inv } = await supabase
+        .from('invitations')
+        .select('*, events(id, name, start_date, end_date)')
+        .or(`id.eq.${attendee_id},code.eq.${attendee_id}`)
+        .maybeSingle();
+
+      if (inv) {
+        // Verificar si ya se había creado un asistente con esta invitación
+        const { data: existingAtt } = await supabase
+          .from('attendees')
+          .select('*, events(id, name, start_date, end_date)')
+          .eq('invitation_id', inv.id)
+          .maybeSingle();
+
+        if (existingAtt) {
+          attendee = existingAtt;
+        } else {
+          // Crear el registro de asistente vinculado a esta invitación
+          const rawName = inv.guest_name || 'Invitado VIP';
+          const nameParts = rawName.trim().split(' ');
+          const newQrCode = inv.code || `VIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+          const attendeePayload = {
+            event_id: inv.event_id,
+            invitation_id: inv.id,
+            category_id: inv.category_id || null,
+            first_name: nameParts[0] || 'Invitado',
+            last_name: nameParts.slice(1).join(' ') || '',
+            email: inv.guest_email || '',
+            qr_code: newQrCode,
+            status: 'pending',
+            is_public_registration: false,
+            additional_data: inv.additional_data || {}
+          };
+
+          const { data: createdAtt, error: createErr } = await supabase
+            .from('attendees')
+            .insert([attendeePayload])
+            .select('*, events(id, name, start_date, end_date)')
+            .single();
+
+          if (!createErr && createdAtt) {
+            attendee = createdAtt;
+          }
+        }
+      }
+    }
 
     if (!attendee) {
-      return res.status(404).json({ success: false, error: 'Asistente no encontrado' });
+      return res.status(404).json({ success: false, error: 'Asistente o invitación no encontrada' });
     }
 
     const event = attendee.events;
     const eventName = event ? event.name : 'el evento';
+    const targetAttendeeId = attendee.id;
 
-    // Verificar que el evento ya haya iniciado
-    if (event && event.start_date) {
-      const startDate = new Date(event.start_date);
+    // Verificar si el evento ya finalizó por completo
+    if (event && event.end_date) {
+      const endDate = new Date(event.end_date);
       const now = new Date();
-
-      if (now < startDate) {
-        const formattedStartDate = startDate.toLocaleDateString('es-ES', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-
+      if (now > endDate) {
         return res.status(400).json({
           success: false,
-          status_code: 'NOT_STARTED',
-          error: `No se puede marcar asistencia aún. El evento "${eventName}" inicia el ${formattedStartDate}.`
+          status_code: 'EVENT_ENDED',
+          error: `No se puede marcar asistencia. El evento "${eventName}" ya ha concluido.`
         });
       }
     }
@@ -309,8 +351,8 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
     const { data: existingCheckin } = await supabase
       .from('checkins')
       .select('*')
-      .eq('event_id', event_id)
-      .eq('attendee_id', attendee_id)
+      .eq('event_id', event_id || attendee.event_id)
+      .eq('attendee_id', targetAttendeeId)
       .maybeSingle();
 
     if (existingCheckin || attendee.status === 'checked_in') {
@@ -318,11 +360,12 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
         ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
         : '';
       const timeMsg = timeStr ? ` a las ${timeStr}` : '';
+      const attendeeFullName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || 'El invitado';
 
       return res.status(400).json({
         success: false,
         status_code: 'ALREADY_USED',
-        error: `La invitación de ${attendee.first_name} ${attendee.last_name} ya fue utilizada previamente${timeMsg}. No se puede volver a marcar asistencia.`
+        error: `La invitación de ${attendeeFullName} ya fue utilizada previamente${timeMsg}. No se puede volver a marcar asistencia.`
       });
     }
 
@@ -331,8 +374,8 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
       .from('checkins')
       .insert([
         {
-          event_id,
-          attendee_id,
+          event_id: event_id || attendee.event_id,
+          attendee_id: targetAttendeeId,
           scanned_by: currentOperatorId || null,
           scanned_by_name: currentOperatorName,
           checkin_type: 'manual'
@@ -344,21 +387,21 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
     if (checkinError) throw checkinError;
 
     // Actualizar estado del asistente
-    await supabase.from('attendees').update({ status: 'checked_in' }).eq('id', attendee_id);
+    await supabase.from('attendees').update({ status: 'checked_in' }).eq('id', targetAttendeeId);
 
     // Guardar auditoría
     await supabase.from('audit_logs').insert([
       {
-        event_id,
+        event_id: event_id || attendee.event_id,
         user_id: currentOperatorId || null,
         user_name: currentOperatorName,
         action: 'CHECKIN_MANUAL',
-        target_id: attendee_id,
-        details: { attendee_name: `${attendee.first_name} ${attendee.last_name}` }
+        target_id: targetAttendeeId,
+        details: { attendee_name: `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || attendee.email }
       }
     ]);
 
-    const attendeeFullName = `${attendee.first_name} ${attendee.last_name}`;
+    const attendeeFullName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || attendee.email;
 
     res.json({
       success: true,
@@ -378,36 +421,49 @@ router.post('/manual/uncheck', requirePermission('UNMARK_ATTENDANCE_MANUAL'), as
     const currentOperatorId = req.user ? req.user.id : operator_id;
     const currentOperatorName = req.user ? req.user.full_name : (operator_name || 'Administrador');
 
-    const { data: attendee } = await supabase
+    let { data: attendee } = await supabase
       .from('attendees')
       .select('*')
       .eq('id', attendee_id)
-      .single();
+      .maybeSingle();
+
+    if (!attendee) {
+      const { data: attByInv } = await supabase
+        .from('attendees')
+        .select('*')
+        .eq('invitation_id', attendee_id)
+        .maybeSingle();
+
+      if (attByInv) attendee = attByInv;
+    }
 
     if (!attendee) {
       return res.status(404).json({ success: false, error: 'Asistente no encontrado' });
     }
 
+    const targetAttendeeId = attendee.id;
+    const targetEventId = event_id || attendee.event_id;
+
     // Eliminar registro de checkin
     await supabase
       .from('checkins')
       .delete()
-      .eq('event_id', event_id)
-      .eq('attendee_id', attendee_id);
+      .eq('event_id', targetEventId)
+      .eq('attendee_id', targetAttendeeId);
 
     // Cambiar estado a pending
-    await supabase.from('attendees').update({ status: 'pending' }).eq('id', attendee_id);
+    await supabase.from('attendees').update({ status: 'pending' }).eq('id', targetAttendeeId);
 
     // Guardar en auditoría con el nombre de quién lo modificó y el motivo
     await supabase.from('audit_logs').insert([
       {
-        event_id,
+        event_id: targetEventId,
         user_id: currentOperatorId || null,
         user_name: currentOperatorName,
         action: 'CHECKIN_REVERSED',
-        target_id: attendee_id,
+        target_id: targetAttendeeId,
         details: {
-          attendee_name: `${attendee.first_name} ${attendee.last_name}`,
+          attendee_name: `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || attendee.email,
           reason: reason || 'Reversión manual realizada'
         }
       }
