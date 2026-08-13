@@ -199,8 +199,22 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
     }
   };
 
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    const apiBase = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' && window.location.port !== '5001'
+      ? 'http://localhost:5001/api'
+      : '/api');
+    
+    const serverHost = apiBase.startsWith('http') ? new URL(apiBase).origin : '';
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `${serverHost}${cleanPath}`;
+  };
+
   const styling = formConfig.styling || DEFAULT_FORM_CONFIG.styling;
-  const headerLogoSource = formConfig.header_logo_url;
+  const headerLogoSource = resolveMediaUrl(formConfig.header_logo_url || eventData?.logo_url || '');
   const gradientStart = styling.header_gradient_start || '#ff4e00';
   const gradientEnd = styling.header_gradient_end || '#e63900';
 
@@ -366,6 +380,29 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
                         </Button>
                       </Upload>
                     </Space.Compact>
+                    {formConfig.header_logo_url && (
+                      <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                        <Space>
+                          <Text type="secondary" style={{ fontSize: '0.8rem' }}>Logo actual:</Text>
+                          <img
+                            src={resolveMediaUrl(formConfig.header_logo_url)}
+                            alt="Logo Preview"
+                            style={{ maxHeight: '44px', maxWidth: '160px', objectFit: 'contain' }}
+                          />
+                        </Space>
+                        <Button
+                          size="small"
+                          danger
+                          type="text"
+                          onClick={() => {
+                            setFormConfig({ ...formConfig, header_logo_url: '' });
+                            setSaved(false);
+                          }}
+                        >
+                          Quitar Logo
+                        </Button>
+                      </div>
+                    )}
                   </Form.Item>
                 </Form>
               </Card>
