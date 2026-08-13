@@ -59,7 +59,7 @@ function AccessCard({
   const hasResult = status !== null;
   const HDR = 153; // altura encabezado en px
 
-  const brandTextToDisplay = (headerBrandText && headerBrandText !== 'InnovaPark') ? String(headerBrandText).trim() : '';
+  const brandTextToDisplay = headerBrandText ? String(headerBrandText).trim() : '';
 
   return (
     <div style={{
@@ -445,7 +445,7 @@ export default function PublicQRScanner({ eventId: propEventId }) {
       }}>
         <AccessCard
           currentTime     = {HORA}
-          logoUrl         = {resolveMediaUrl(cfg.header_logo_url || eventData?.logo_url || logoBase64)}
+          logoUrl         = {resolveMediaUrl(cfg.header_logo_url || eventData?.logo_url || '')}
           headerBrandText = {cfg.header_brand_text}
           title           = {cfg.scanner_title !== undefined ? cfg.scanner_title : 'Control de Acceso'}
           showClock       = {cfg.show_clock !== false}

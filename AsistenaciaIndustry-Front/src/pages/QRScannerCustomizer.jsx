@@ -94,10 +94,10 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
             setFormConfig({
               ...DEFAULT_FORM_CONFIG,
               ...res.data.form_config,
-              header_brand_text: (res.data.form_config.header_brand_text && res.data.form_config.header_brand_text !== 'InnovaPark') ? res.data.form_config.header_brand_text : '',
-              header_logo_url: res.data.form_config.header_logo_url || '',
-              scanner_title: res.data.form_config.scanner_title !== undefined ? res.data.form_config.scanner_title : '',
-              event_tagline: (res.data.form_config.event_tagline && !res.data.form_config.event_tagline.includes('INNOVA PARK')) ? res.data.form_config.event_tagline : '',
+              header_brand_text: res.data.form_config.header_brand_text !== undefined ? res.data.form_config.header_brand_text : '',
+              header_logo_url: res.data.form_config.header_logo_url !== undefined ? res.data.form_config.header_logo_url : '',
+              scanner_title: res.data.form_config.scanner_title !== undefined ? res.data.form_config.scanner_title : 'Control de Acceso',
+              event_tagline: res.data.form_config.event_tagline !== undefined ? res.data.form_config.event_tagline : '',
               status_label_success: res.data.form_config.status_label_success || 'Entrada registrada',
               status_label_already_used: res.data.form_config.status_label_already_used || 'Entrada ya registrada previamente',
               status_label_invalid: res.data.form_config.status_label_invalid || 'Código denegado / No válido',
@@ -755,15 +755,17 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
                       {/* Header Brand Logo & Text */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {formConfig.show_logo !== false && (
-                          headerLogoSource ? (
-                            <img src={headerLogoSource} alt="Brand" style={{ maxHeight: '34px', maxWidth: '100px', objectFit: 'contain' }} />
-                          ) : null
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {headerLogoSource ? (
+                              <img src={headerLogoSource} alt="Brand" style={{ maxHeight: '34px', maxWidth: '100px', objectFit: 'contain' }} />
+                            ) : null}
+                            {formConfig.header_brand_text ? (
+                              <span style={{ fontSize: '1.8rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em', fontFamily: 'system-ui, sans-serif' }}>
+                                {formConfig.header_brand_text}
+                              </span>
+                            ) : null}
+                          </div>
                         )}
-                        {formConfig.header_brand_text && formConfig.header_brand_text !== 'InnovaPark' ? (
-                          <span style={{ fontSize: '1.8rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em', fontFamily: 'system-ui, sans-serif' }}>
-                            {formConfig.header_brand_text}
-                          </span>
-                        ) : null}
                       </div>
                     </div>
 
