@@ -43,8 +43,9 @@ function useCardScale(padding = 64) {
    ══════════════════════════════════════════════════════════════════ */
 function AccessCard({
   currentTime = '', logoUrl = '',
-  brandFirst = 'Innova', brandSecond = 'Park',
+  headerBrandText = null,
   title = 'Control de Acceso',
+  showClock = true, showLogo = true,
   status = null, statusColor = '#3D9B35',
   personName = null,
   eventName = null, entryTime = null,
@@ -56,6 +57,8 @@ function AccessCard({
 }) {
   const hasResult = status !== null;
   const HDR = 153; // altura encabezado en px
+
+  const brandTextToDisplay = headerBrandText !== null && headerBrandText !== undefined ? headerBrandText : 'InnovaPark';
 
   return (
     <div style={{
@@ -90,8 +93,7 @@ function AccessCard({
           d={`M54,0 L${CARD_W-54},0 Q${CARD_W},0 ${CARD_W},54
               L${CARD_W},${HDR} L0,${HDR} L0,54 Q0,0 54,0 Z`}/>
 
-        {/* ══ FIGURA IZQUIERDA: 5 bandas curvas concéntricas ══
-            Nacen en (0, HDR) y bajan curvándose hacia la esquina inf-izq */}
+        {/* ══ FIGURA IZQUIERDA: 5 bandas curvas concéntricas ══ */}
         <path fill={d4} d={`M0,${HDR} C95,${HDR+10} 178,${HDR+127} 190,${HDR+247} C198,${HDR+337} 160,${HDR+412} 60,${CARD_H} L0,${CARD_H} Z`}/>
         <path fill={d3} d={`M0,${HDR} C72,${HDR+8}  138,${HDR+112} 148,${HDR+222} C156,${HDR+307} 122,${HDR+382} 30,${CARD_H} L0,${CARD_H} Z`}/>
         <path fill={d2} d={`M0,${HDR} C50,${HDR+6}  98,${HDR+95}  105,${HDR+195} C112,${HDR+277} 84,${HDR+349}  8,${CARD_H}  L0,${CARD_H} Z`}/>
@@ -99,8 +101,7 @@ function AccessCard({
         <path fill={d1} fillOpacity=".42"
               d={`M0,${HDR} C15,${HDR+3}  30,${HDR+56}  32,${HDR+132} C34,${HDR+203} 22,${HDR+258}  0,${CARD_H-142} L0,${CARD_H} Z`}/>
 
-        {/* ══ FIGURA DERECHA: 5 bandas diagonales ascendentes ══
-            Nacen en el borde derecho y descienden hasta el borde inferior */}
+        {/* ══ FIGURA DERECHA: 5 bandas diagonales ascendentes ══ */}
         <path fill={d4} d={`M${CARD_W},248 C${CARD_W-80},318  ${CARD_W-180},400 ${CARD_W-258},${CARD_H} L${CARD_W},${CARD_H} Z`}/>
         <path fill={d3} d={`M${CARD_W},292 C${CARD_W-72},358  ${CARD_W-162},432 ${CARD_W-228},${CARD_H} L${CARD_W},${CARD_H} Z`}/>
         <path fill={d2} d={`M${CARD_W},334 C${CARD_W-64},390  ${CARD_W-142},464 ${CARD_W-198},${CARD_H} L${CARD_W},${CARD_H} Z`}/>
@@ -122,49 +123,45 @@ function AccessCard({
         zIndex:         2,
       }}>
         {/* Reloj */}
-        <div style={{
-          fontSize:      '78px',
-          fontWeight:    700,
-          color:         '#FFFFFF',
-          letterSpacing: '-1.5px',
-          lineHeight:    1,
-          whiteSpace:    'nowrap',
-          fontFamily:    F,
-          fontVariantNumeric: 'tabular-nums',
-        }}>
-          {currentTime}
-        </div>
+        {showClock ? (
+          <div style={{
+            fontSize:      '78px',
+            fontWeight:    700,
+            color:         '#FFFFFF',
+            letterSpacing: '-1.5px',
+            lineHeight:    1,
+            whiteSpace:    'nowrap',
+            fontFamily:    F,
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {currentTime}
+          </div>
+        ) : <div />}
 
         {/* Logo + Marca */}
-        <div style={{ display:'flex', alignItems:'center', gap:'18px', flexShrink:0 }}>
-          {logoUrl ? (
-            <img src={logoUrl} alt="logo" style={{
-              height:'68px', width:'auto', objectFit:'contain',
-              filter:'brightness(0) invert(1)', flexShrink:0,
-            }}/>
-          ) : (
-            <svg viewBox="0 0 72 72" width="68" height="68" style={{ flexShrink:0 }}>
-              <polygon points="36,5 64,21 64,51 36,67 8,51 8,21"
-                       fill="none" stroke="#fff" strokeWidth="5" strokeLinejoin="round"/>
-              <polygon points="36,18 54,36 36,54 18,36"
-                       fill="none" stroke="#fff" strokeWidth="4" strokeLinejoin="round"/>
-              <circle cx="36" cy="36" r="5.5" fill="#fff"/>
-            </svg>
-          )}
-          <div style={{ fontSize:'52px', lineHeight:1, color:'#FFFFFF',
-                        whiteSpace:'nowrap', letterSpacing:'-0.5px', fontFamily:F }}>
-            <span style={{ fontWeight:700 }}>{brandFirst}</span>
-            <span style={{ fontWeight:300 }}>{brandSecond}</span>
+        {showLogo && (
+          <div style={{ display:'flex', alignItems:'center', gap:'18px', flexShrink:0 }}>
+            {logoUrl ? (
+              <img src={logoUrl} alt="logo" style={{
+                height:'68px', width:'auto', objectFit:'contain', flexShrink:0,
+              }}/>
+            ) : null}
+            {brandTextToDisplay ? (
+              <div style={{ fontSize:'52px', lineHeight:1, color:'#FFFFFF',
+                            whiteSpace:'nowrap', letterSpacing:'-0.5px', fontFamily:F }}>
+                <span style={{ fontWeight:700 }}>{brandTextToDisplay}</span>
+              </div>
+            ) : null}
           </div>
-        </div>
+        )}
       </div>
 
       {/* ══ CUERPO CENTRAL HTML ══ */}
       <div style={{
         position:       'absolute',
         top:            `${HDR}px`,
-        left:           '270px',   /* fuera de la figura izquierda */
-        right:          '215px',   /* fuera de la figura derecha */
+        left:           '270px',
+        right:          '215px',
         bottom:         0,
         display:        'flex',
         flexDirection:  'column',
@@ -177,9 +174,11 @@ function AccessCard({
 
         {!hasResult ? (
           <>
-            <div style={{ fontSize:'38px', fontWeight:400, color:textMain, lineHeight:1.3, marginBottom:'16px' }}>
-              {title}
-            </div>
+            {title ? (
+              <div style={{ fontSize:'38px', fontWeight:400, color:textMain, lineHeight:1.3, marginBottom:'16px' }}>
+                {title}
+              </div>
+            ) : null}
             <div style={{ fontSize:'24px', fontWeight:500, color:textSub, opacity:.5, lineHeight:1.3 }}>
               Listo para escanear
             </div>
@@ -187,24 +186,24 @@ function AccessCard({
         ) : (
           <>
             {/* 1. Título */}
-            <div style={{ fontSize:'40px', fontWeight:400, color:textMain, lineHeight:1.25, marginBottom:'4px' }}>
-              {title}
-            </div>
+            {title ? (
+              <div style={{ fontSize:'40px', fontWeight:400, color:textMain, lineHeight:1.25, marginBottom:'4px' }}>
+                {title}
+              </div>
+            ) : null}
 
             {/* 2. Estado */}
             <div style={{ fontSize:'31px', fontWeight:500, color:statusColor, lineHeight:1.25, marginBottom:'16px' }}>
               {status}
             </div>
 
-            {/* 3. Nombre — dominante */}
+            {/* 3. Nombre */}
             {personName && (
               <div style={{ fontSize:'44px', fontWeight:800, color:textMain,
                             lineHeight:1.15, letterSpacing:'-1px', marginBottom:'12px' }}>
                 {personName}
               </div>
             )}
-
-
 
             {/* 5. Evento */}
             {eventName && (
@@ -214,7 +213,7 @@ function AccessCard({
               </div>
             )}
 
-            {/* 6. Hora de ingreso — cápsula */}
+            {/* 6. Hora de ingreso */}
             {entryTime && (
               <div style={{
                 display:'inline-flex', alignItems:'center',
@@ -408,7 +407,7 @@ export default function PublicQRScanner({ eventId: propEventId }) {
         />
       )}
 
-      {/* ── Overlay semitransparente sobre el video / imagen (opcional, mejora legibilidad) ── */}
+      {/* ── Overlay semitransparente sobre el video / imagen ── */}
       {(BG_VIDEO || BG_IMAGE) && (
         <div style={{
           position:        'absolute',
@@ -435,27 +434,28 @@ export default function PublicQRScanner({ eventId: propEventId }) {
         left:            `${-(CARD_W * (1 - scale)) / 2}px`,
       }}>
         <AccessCard
-          currentTime = {HORA}
-          logoUrl     = {cfg.header_logo_url || ''}
-          brandFirst  = {'Innova'}
-          brandSecond = {'Park'}
-          title       = {cfg.scanner_title || 'Control de Acceso'}
-          status      = {STATUS_TEXT}
-          statusColor = {STATUS_COLOR}
-          personName  = {NOMBRE}
-          eventName   = {EVENTO}
-          entryTime   = {HORA_INGRESO}
-          g1          = {sty.header_gradient_start  || '#FF7600'}
-          g2          = {sty.header_gradient_middle || '#F94810'}
-          g3          = {sty.header_gradient_end    || '#EE291B'}
-          cardBg      = {sty.card_bg_color          || '#F7F4FA'}
-          textMain    = {sty.text_color             || '#29282D'}
-          textSub     = {sty.secondary_text_color   || '#45424A'}
-          d1          = {sty.decor_1 || '#FF7A17'}
-          d2          = {sty.decor_2 || '#FF5612'}
-          d3          = {sty.decor_3 || '#F64713'}
-          d4          = {sty.decor_4 || '#E82C18'}
-          d5          = {sty.decor_5 || '#D42417'}
+          currentTime     = {HORA}
+          logoUrl         = {resolveMediaUrl(cfg.header_logo_url || eventData?.logo_url || '')}
+          headerBrandText = {cfg.header_brand_text}
+          title           = {cfg.scanner_title !== undefined ? cfg.scanner_title : 'Control de Acceso'}
+          showClock       = {cfg.show_clock !== false}
+          showLogo        = {cfg.show_logo !== false}
+          status          = {STATUS_TEXT}
+          statusColor     = {STATUS_COLOR}
+          personName      = {NOMBRE}
+          eventName       = {EVENTO}
+          entryTime       = {HORA_INGRESO}
+          g1              = {sty.header_gradient_start  || '#FF7600'}
+          g2              = {sty.header_gradient_middle || '#F94810'}
+          g3              = {sty.header_gradient_end    || '#EE291B'}
+          cardBg          = {sty.card_bg_color          || '#F7F4FA'}
+          textMain        = {sty.text_color             || '#29282D'}
+          textSub         = {sty.secondary_text_color   || '#45424A'}
+          d1              = {sty.decor_1 || '#FF7A17'}
+          d2              = {sty.decor_2 || '#FF5612'}
+          d3              = {sty.decor_3 || '#F64713'}
+          d4              = {sty.decor_4 || '#E82C18'}
+          d5              = {sty.decor_5 || '#D42417'}
         />
       </div>
     </div>

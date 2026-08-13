@@ -94,10 +94,10 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
             setFormConfig({
               ...DEFAULT_FORM_CONFIG,
               ...res.data.form_config,
-              header_brand_text: res.data.form_config.header_brand_text || 'InnovaPark',
-              header_logo_url: res.data.form_config.header_logo_url || '',
-              scanner_title: res.data.form_config.scanner_title || 'Control de Acceso',
-              event_tagline: res.data.form_config.event_tagline || `${res.data.name || 'INNOVA PARK'} - Event`,
+              header_brand_text: res.data.form_config.header_brand_text !== undefined ? res.data.form_config.header_brand_text : 'InnovaPark',
+              header_logo_url: res.data.form_config.header_logo_url !== undefined ? res.data.form_config.header_logo_url : '',
+              scanner_title: res.data.form_config.scanner_title !== undefined ? res.data.form_config.scanner_title : 'Control de Acceso',
+              event_tagline: res.data.form_config.event_tagline !== undefined ? res.data.form_config.event_tagline : `${res.data.name || 'INNOVA PARK'} - Event`,
               status_label_success: res.data.form_config.status_label_success || 'Entrada registrada',
               status_label_already_used: res.data.form_config.status_label_already_used || 'Entrada ya registrada previamente',
               status_label_invalid: res.data.form_config.status_label_invalid || 'Código denegado / No válido',
@@ -718,18 +718,14 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {formConfig.show_logo !== false && (
                           headerLogoSource ? (
-                            <img src={headerLogoSource} alt="Brand" style={{ maxHeight: '34px', maxWidth: '100px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
-                          ) : (
-                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                              <path d="M16 2L3 9.5V22.5L16 30L29 22.5V9.5L16 2Z" fill="none" stroke="#ffffff" strokeWidth="2.5" />
-                              <path d="M16 2L29 9.5L16 17L3 9.5L16 2Z" fill="#ffffff" opacity="0.35" />
-                              <path d="M16 17V30L29 22.5V9.5L16 17Z" fill="#ffffff" opacity="0.75" />
-                            </svg>
-                          )
+                            <img src={headerLogoSource} alt="Brand" style={{ maxHeight: '34px', maxWidth: '100px', objectFit: 'contain' }} />
+                          ) : null
                         )}
-                        <span style={{ fontSize: '1.8rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em', fontFamily: 'system-ui, sans-serif' }}>
-                          {formConfig.header_brand_text || 'InnovaPark'}
-                        </span>
+                        {formConfig.header_brand_text !== '' && (
+                          <span style={{ fontSize: '1.8rem', fontWeight: '700', color: '#ffffff', letterSpacing: '-0.02em', fontFamily: 'system-ui, sans-serif' }}>
+                            {formConfig.header_brand_text !== undefined ? formConfig.header_brand_text : 'InnovaPark'}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -747,9 +743,11 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
                         flexGrow: 1
                       }}
                     >
-                      <div style={{ fontSize: '1.1rem', color: '#33333e', fontWeight: '500', marginBottom: '2px', fontFamily: 'system-ui, sans-serif' }}>
-                        {formConfig.scanner_title || 'Control de Acceso'}
-                      </div>
+                      {formConfig.scanner_title ? (
+                        <div style={{ fontSize: '1.1rem', color: '#33333e', fontWeight: '500', marginBottom: '2px', fontFamily: 'system-ui, sans-serif' }}>
+                          {formConfig.scanner_title}
+                        </div>
+                      ) : null}
 
                       {previewMode === 'demo' ? (
                         <>
