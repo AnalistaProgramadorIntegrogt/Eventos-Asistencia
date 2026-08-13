@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { api } from '../services/apiService';
+import { logoBase64 } from '../assets/logoBase64.js';
 
 /* ── Google Fonts ── */
 if (!document.getElementById('inter-font')) {
@@ -142,9 +143,18 @@ function AccessCard({
         {showLogo && (
           <div style={{ display:'flex', alignItems:'center', gap:'18px', flexShrink:0 }}>
             {logoUrl ? (
-              <img src={logoUrl} alt="logo" style={{
-                height:'68px', width:'auto', objectFit:'contain', flexShrink:0,
-              }}/>
+              <img
+                src={logoUrl}
+                alt="logo"
+                style={{
+                  maxHeight:'68px', maxWidth:'240px', height:'auto', width:'auto', objectFit:'contain', flexShrink:0, display:'block'
+                }}
+                onError={(e) => {
+                  if (e.target.src !== logoBase64) {
+                    e.target.src = logoBase64;
+                  }
+                }}
+              />
             ) : null}
             {brandTextToDisplay ? (
               <div style={{ fontSize:'52px', lineHeight:1, color:'#FFFFFF',
@@ -435,7 +445,7 @@ export default function PublicQRScanner({ eventId: propEventId }) {
       }}>
         <AccessCard
           currentTime     = {HORA}
-          logoUrl         = {resolveMediaUrl(cfg.header_logo_url || eventData?.logo_url || '')}
+          logoUrl         = {resolveMediaUrl(cfg.header_logo_url || eventData?.logo_url || logoBase64)}
           headerBrandText = {cfg.header_brand_text}
           title           = {cfg.scanner_title !== undefined ? cfg.scanner_title : 'Control de Acceso'}
           showClock       = {cfg.show_clock !== false}
