@@ -44,7 +44,7 @@ function useCardScale(padding = 64) {
 function AccessCard({
   currentTime = '', logoUrl = '',
   headerBrandText = null,
-  title = 'Control de Acceso',
+  title = '',
   showClock = true, showLogo = true,
   status = null, statusColor = '#3D9B35',
   personName = null,
@@ -58,7 +58,7 @@ function AccessCard({
   const hasResult = status !== null;
   const HDR = 153; // altura encabezado en px
 
-  const brandTextToDisplay = headerBrandText !== null && headerBrandText !== undefined ? headerBrandText : 'InnovaPark';
+  const brandTextToDisplay = (headerBrandText && headerBrandText !== 'InnovaPark') ? String(headerBrandText).trim() : '';
 
   return (
     <div style={{
@@ -342,7 +342,7 @@ export default function PublicQRScanner({ eventId: propEventId }) {
     ? `Ingreso a las ${fmtH(scanResult.data.check_in_time)}` : null;
 
   const EVENTO = ok
-    ? (cfg.event_tagline || `${eventData?.name || 'INNOVA PARK'} - Event`)
+    ? (cfg.event_tagline || (eventData?.name ? `${eventData.name}` : ''))
     : null;
 
   const resolveMediaUrl = (url) => {
