@@ -140,7 +140,7 @@ function AccessCard({
         ) : <div />}
 
         {/* Logo + Marca */}
-        {showLogo && (
+        {(showLogo || logoUrl || brandTextToDisplay) && (
           <div style={{ display:'flex', alignItems:'center', gap:'18px', flexShrink:0 }}>
             {logoUrl ? (
               <img
@@ -314,7 +314,13 @@ export default function PublicQRScanner({ eventId: propEventId }) {
 
   const cfg = eventData?.form_config || {};
   const sty = cfg.styling            || {};
-  const HORA = currentTime.toLocaleTimeString('es-GT', { hour12: false });
+  const HORA = currentTime.toLocaleTimeString('es-GT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZone: 'America/Guatemala'
+  });
 
   const ok   = !!scanResult;
   const win  = scanResult?.status_code === 'SUCCESS';
@@ -342,8 +348,14 @@ export default function PublicQRScanner({ eventId: propEventId }) {
 
   const fmtH = (iso) => {
     try { 
-      const cleanIso = iso ? iso.split('.')[0].replace('Z', '').split('+')[0].replace(/-/g, '/').replace('T', ' ') : '';
-      return new Date(cleanIso).toLocaleTimeString('es-GT',{hour:'2-digit',minute:'2-digit',hour12:false}); 
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleTimeString('es-GT', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'America/Guatemala'
+      }); 
     }
     catch { return ''; }
   };

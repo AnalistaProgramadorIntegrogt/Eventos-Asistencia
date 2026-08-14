@@ -158,7 +158,7 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
 
     if (existingCheckin || attendee.status === 'checked_in') {
       const timeStr = existingCheckin && existingCheckin.checked_in_at
-        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
         : '';
       const timeMsg = timeStr ? ` a las ${timeStr}` : '';
 
@@ -357,7 +357,7 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
 
     if (existingCheckin || attendee.status === 'checked_in') {
       const timeStr = existingCheckin && existingCheckin.checked_in_at
-        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
         : '';
       const timeMsg = timeStr ? ` a las ${timeStr}` : '';
       const attendeeFullName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || 'El invitado';

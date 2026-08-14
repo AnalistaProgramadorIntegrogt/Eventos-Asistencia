@@ -353,7 +353,8 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
         return d.toLocaleTimeString('es-GT', {
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: true,
+          timeZone: 'America/Guatemala'
         });
       } catch (e) {
         return 'Por confirmar';

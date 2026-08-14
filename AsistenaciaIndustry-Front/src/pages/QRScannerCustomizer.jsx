@@ -754,7 +754,7 @@ export default function QRScannerCustomizer({ selectedEventId, embedded = false 
 
                       {/* Header Brand Logo & Text */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {formConfig.show_logo !== false && (
+                        {(formConfig.show_logo !== false || headerLogoSource || formConfig.header_brand_text) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {headerLogoSource ? (
                               <img src={headerLogoSource} alt="Brand" style={{ maxHeight: '34px', maxWidth: '100px', objectFit: 'contain' }} />
