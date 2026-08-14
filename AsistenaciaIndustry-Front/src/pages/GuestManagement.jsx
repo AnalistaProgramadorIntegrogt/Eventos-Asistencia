@@ -791,16 +791,59 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       }
     },
     {
-      title: 'Asistencia Manual',
+      title: 'Hora de Check-in / Asistencia',
       key: 'manual_checkin',
       render: (_, record) => {
-        const hasCheckedIn = record.status === 'checked_in' || record.checked_in === true || (record.checkins && record.checkins.length > 0);
-        if (hasCheckedIn) {
-          return <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontWeight: '600', padding: '4px 10px' }}>🟢 Asistió</Tag>;
+        let rawTime = record.check_in_time || record.checked_in_at;
+        if (!rawTime && Array.isArray(record.attendees) && record.attendees[0]) {
+          const att = record.attendees[0];
+          if (att.check_in_time) rawTime = att.check_in_time;
+          else if (Array.isArray(att.checkins) && att.checkins[0]) {
+            rawTime = att.checkins[0].checked_in_at;
+          }
         }
+        if (!rawTime && Array.isArray(record.checkins) && record.checkins[0]) {
+          rawTime = record.checkins[0].checked_in_at;
+        }
+
+        const hasCheckedIn = record.status === 'checked_in' || record.checked_in === true || !!rawTime;
+
+        if (hasCheckedIn) {
+          let formattedTimeStr = '';
+          if (rawTime) {
+            try {
+              const d = new Date(rawTime);
+              formattedTimeStr = d.toLocaleTimeString('es-GT', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+                timeZone: 'America/Guatemala'
+              });
+            } catch (e) {
+              formattedTimeStr = '';
+            }
+          }
+
+          return (
+            <div>
+              <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontWeight: '700', padding: '3px 8px', fontSize: '0.82rem' }}>
+                🟢 Asistió
+              </Tag>
+              {formattedTimeStr ? (
+                <div style={{ fontSize: '0.78rem', color: '#047857', fontWeight: '600', marginTop: '4px' }}>
+                  <ClockCircleOutlined style={{ marginRight: '4px' }} />
+                  {formattedTimeStr}
+                </div>
+              ) : null}
+            </div>
+          );
+        }
+
         if (!canMarkAttendance) {
           return <Tag color="default">No Autorizado</Tag>;
         }
+
         return (
           <Button
             size="small"

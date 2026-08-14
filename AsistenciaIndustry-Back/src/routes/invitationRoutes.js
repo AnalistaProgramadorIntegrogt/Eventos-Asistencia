@@ -19,8 +19,25 @@ const getFrontendBaseUrl = () => process.env.FRONTEND_URL || 'http://localhost:3
 const formatInvitationResponse = (invitation) => {
   if (!invitation) return null;
   const baseUrl = getFrontendBaseUrl();
+
+  let checkinTime = invitation.check_in_time || null;
+  let scannedByName = invitation.scanned_by_name || null;
+  let checkinType = invitation.checkin_type || null;
+
+  if (Array.isArray(invitation.attendees) && invitation.attendees.length > 0) {
+    const att = invitation.attendees[0];
+    if (Array.isArray(att.checkins) && att.checkins.length > 0) {
+      checkinTime = att.checkins[0].checked_in_at;
+      scannedByName = att.checkins[0].scanned_by_name;
+      checkinType = att.checkins[0].checkin_type;
+    }
+  }
+
   return {
     ...invitation,
+    check_in_time: checkinTime,
+    scanned_by_name: scannedByName,
+    checkin_type: checkinType,
     invitation_link: `${baseUrl}/public/events/${invitation.event_id}/invitations/${invitation.code}`
   };
 };
