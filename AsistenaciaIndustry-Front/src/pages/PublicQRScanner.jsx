@@ -349,7 +349,12 @@ export default function PublicQRScanner({ eventId: propEventId }) {
   const fmtH = (iso) => {
     try { 
       if (!iso) return '';
-      const d = new Date(iso);
+      let s = String(iso).trim();
+      if (!s.endsWith('Z') && !s.includes('+') && !/[-+]\d{2}:\d{2}$/.test(s)) {
+        s = s.replace(' ', 'T') + 'Z';
+      }
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return '';
       return d.toLocaleTimeString('es-GT', {
         hour: '2-digit',
         minute: '2-digit',

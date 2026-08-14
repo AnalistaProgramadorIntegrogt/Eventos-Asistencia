@@ -348,7 +348,11 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
     const formatTimeGT = (dateStr) => {
       if (!dateStr) return 'Por confirmar';
       try {
-        const d = new Date(dateStr);
+        let s = String(dateStr).trim();
+        if (!s.endsWith('Z') && !s.includes('+') && !/[-+]\d{2}:\d{2}$/.test(s)) {
+          s = s.replace(' ', 'T') + 'Z';
+        }
+        const d = new Date(s);
         if (isNaN(d.getTime())) return 'Por confirmar';
         return d.toLocaleTimeString('es-GT', {
           hour: '2-digit',

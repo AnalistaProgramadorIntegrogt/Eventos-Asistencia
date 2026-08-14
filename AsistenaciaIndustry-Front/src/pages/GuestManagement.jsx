@@ -812,14 +812,20 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
           let formattedTimeStr = '';
           if (rawTime) {
             try {
-              const d = new Date(rawTime);
-              formattedTimeStr = d.toLocaleTimeString('es-GT', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true,
-                timeZone: 'America/Guatemala'
-              });
+              let s = String(rawTime).trim();
+              if (!s.endsWith('Z') && !s.includes('+') && !/[-+]\d{2}:\d{2}$/.test(s)) {
+                s = s.replace(' ', 'T') + 'Z';
+              }
+              const d = new Date(s);
+              if (!isNaN(d.getTime())) {
+                formattedTimeStr = d.toLocaleTimeString('es-GT', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                  timeZone: 'America/Guatemala'
+                });
+              }
             } catch (e) {
               formattedTimeStr = '';
             }

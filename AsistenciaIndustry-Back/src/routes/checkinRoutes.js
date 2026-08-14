@@ -156,9 +156,21 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
       .eq('attendee_id', attendee.id)
       .maybeSingle();
 
+const parseUtcDate = (dateStr) => {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return dateStr;
+  let s = String(dateStr).trim();
+  if (!s) return null;
+  if (!s.endsWith('Z') && !s.includes('+') && !/[-+]\d{2}:\d{2}$/.test(s)) {
+    s = s.replace(' ', 'T') + 'Z';
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+};
+
     if (existingCheckin || attendee.status === 'checked_in') {
       const timeStr = existingCheckin && existingCheckin.checked_in_at
-        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
+        ? parseUtcDate(existingCheckin.checked_in_at)?.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
         : '';
       const timeMsg = timeStr ? ` a las ${timeStr}` : '';
 
@@ -357,7 +369,7 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
 
     if (existingCheckin || attendee.status === 'checked_in') {
       const timeStr = existingCheckin && existingCheckin.checked_in_at
-        ? new Date(existingCheckin.checked_in_at).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
+        ? parseUtcDate(existingCheckin.checked_in_at)?.toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Guatemala' })
         : '';
       const timeMsg = timeStr ? ` a las ${timeStr}` : '';
       const attendeeFullName = `${attendee.first_name || ''} ${attendee.last_name || ''}`.trim() || 'El invitado';
