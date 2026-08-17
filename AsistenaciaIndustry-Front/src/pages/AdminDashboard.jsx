@@ -332,12 +332,12 @@ export default function AdminDashboard({ selectedEventId }) {
                         <Text type="secondary" style={{ fontSize: '0.82rem' }}>
                           {attendedInCat} asistieron de {totalInCat}
                         </Text>
-                        <Tag color={isNoCat ? 'default' : (pct >= 50 ? 'green' : 'volcano')} style={{ fontWeight: 'bold', margin: 0 }}>
+                        <Tag color={pct >= 50 ? 'green' : 'volcano'} style={{ fontWeight: 'bold', margin: 0 }}>
                           {pct}%
                         </Tag>
                       </Space>
                     </div>
-                    <Progress percent={pct} strokeColor={isNoCat ? '#94a3b8' : '#10b981'} showInfo={false} />
+                    <Progress percent={pct} strokeColor={pct >= 50 ? '#10b981' : (isNoCat ? '#64748b' : '#10b981')} showInfo={false} />
                   </div>
                 );
               })

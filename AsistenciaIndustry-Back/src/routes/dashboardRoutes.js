@@ -67,8 +67,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
       return n.includes('sin categor');
     };
 
-    // Obtener invitaciones activas con su categoría (fuente principal para VIPs)
-    // NOTA: invitations no tiene columna "status", solo "is_active"
+    // Obtener invitaciones activas con su categoría
     const { data: activeInvitations } = await supabase
       .from('invitations')
       .select('id, category_id, is_active, event_categories(name)')
@@ -84,35 +83,59 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
 
     let noCatStats = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
 
-    // Procesar todos los asistentes para estadísticas de categoría
-    // status='confirmed' o 'checked_in' o 'attended' → invitado registrado/confirmado
-    (attendees || []).forEach(a => {
-      const catName = a.event_categories?.name;
-      const isConfirmed = a.status === 'confirmed' || a.status === 'checked_in' || a.status === 'attended';
-      const isCheckedIn = a.status === 'checked_in' || a.status === 'attended';
+    // Construir mapa de invitados únicos (combinando invitaciones de Excel + registros web)
+    const guestMap = new Map();
 
+    (activeInvitations || []).forEach(inv => {
+      const catName = inv.event_categories?.name;
+      guestMap.set(inv.id, {
+        id: inv.id,
+        categoryName: (catName && !isGenericCat(catName)) ? catName : 'Sin Categoría',
+        isConfirmed: false,
+        isCheckedIn: false
+      });
+    });
+
+    (attendees || []).forEach(att => {
+      const catName = att.event_categories?.name;
+      const key = att.invitation_id || att.id;
+      const isConfirmed = att.status === 'confirmed' || att.status === 'checked_in' || att.status === 'attended';
+      const isCheckedIn = att.status === 'checked_in' || att.status === 'attended';
+
+      if (guestMap.has(key)) {
+        const g = guestMap.get(key);
+        if (catName && !isGenericCat(catName)) g.categoryName = catName;
+        if (isConfirmed) g.isConfirmed = true;
+        if (isCheckedIn) g.isCheckedIn = true;
+      } else {
+        guestMap.set(key, {
+          id: key,
+          categoryName: (catName && !isGenericCat(catName)) ? catName : 'Sin Categoría',
+          isConfirmed,
+          isCheckedIn
+        });
+      }
+    });
+
+    guestMap.forEach(g => {
+      const catName = g.categoryName;
       if (catName && !isGenericCat(catName)) {
         if (!categoryStats[catName]) {
           categoryStats[catName] = { total: 0, confirmados: 0, asistieron: 0, pendientes: 0 };
         }
         categoryStats[catName].total += 1;
-        if (isConfirmed) {
-          categoryStats[catName].confirmados += 1;
-        } else {
-          categoryStats[catName].pendientes += 1;
-        }
-        if (isCheckedIn) categoryStats[catName].asistieron += 1;
+        if (g.isConfirmed) categoryStats[catName].confirmados += 1;
+        else categoryStats[catName].pendientes += 1;
+        if (g.isCheckedIn) categoryStats[catName].asistieron += 1;
       } else {
         noCatStats.total += 1;
-        if (isConfirmed) noCatStats.confirmados += 1;
+        if (g.isConfirmed) noCatStats.confirmados += 1;
         else noCatStats.pendientes += 1;
-        if (isCheckedIn) noCatStats.asistieron += 1;
+        if (g.isCheckedIn) noCatStats.asistieron += 1;
       }
     });
 
-    // Total = total de asistentes reales
-    const totalAllGuests = (attendees || []).length;
-
+    const totalAllGuests = guestMap.size || (attendees || []).length;
 
     const categoryChartData = Object.keys(categoryStats)
       .filter(cat => categoryStats[cat].total > 0)
