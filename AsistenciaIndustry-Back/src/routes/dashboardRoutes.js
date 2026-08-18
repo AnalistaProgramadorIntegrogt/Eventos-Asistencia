@@ -64,7 +64,7 @@ router.get('/events/:eventId', requirePermission('VIEW_DASHBOARD'), async (req, 
     const isGenericCat = (name) => {
       if (!name) return true;
       const n = name.trim().toLowerCase();
-      return n.includes('sin categor');
+      return n.includes('sin categor') || n === 'general' || n === 'vip';
     };
 
     // Obtener invitaciones activas con su categoría
