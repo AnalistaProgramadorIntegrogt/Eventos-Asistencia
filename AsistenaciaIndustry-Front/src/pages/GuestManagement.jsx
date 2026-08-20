@@ -3,7 +3,7 @@ import { Card, Table, Button, Modal, Form, Input, Tag, Upload, Typography, Space
 import { UserAddOutlined, UploadOutlined, CopyOutlined, CheckOutlined, ReloadOutlined, PoweroffOutlined, FileExcelOutlined, SearchOutlined, DeleteOutlined, SyncOutlined, StarOutlined, GlobalOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined, DownloadOutlined, QrcodeOutlined, ExportOutlined, EditOutlined, TagOutlined, MailOutlined, SendOutlined, PhoneOutlined, WhatsAppOutlined } from '@ant-design/icons';
 import { api, getStoredUser } from '../services/apiService';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 export default function GuestManagement({ selectedEventId, embedded = false, currentUser }) {
   const activeUser = currentUser || getStoredUser();
