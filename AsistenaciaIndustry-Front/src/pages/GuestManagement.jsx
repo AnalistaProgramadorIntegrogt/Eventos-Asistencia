@@ -102,6 +102,10 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [selectedWaGuest, setSelectedWaGuest] = useState(null);
   const [waLoading, setWaLoading] = useState(false);
 
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
   const isGenericCat = (name) => {
     if (!name) return true;
     const n = name.trim().toLowerCase();
@@ -118,6 +122,29 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
       setCategories(list.filter(c => c && c.name && !isGenericCat(c.name)));
     } catch (e) {
       console.error('Error cargando categorías:', e);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      message.warning('Ingrese el nombre de la nueva categoría.');
+      return;
+    }
+    try {
+      setCreatingCategory(true);
+      const res = await api.events.createCategory(selectedEventId, newCategoryName.trim());
+      if (res.success !== false) {
+        message.success(`Categoría "${newCategoryName.trim()}" creada exitosamente.`);
+        setNewCategoryName('');
+        setShowCategoryModal(false);
+        await fetchCategories();
+      } else {
+        message.error('Error al crear categoría: ' + (res.error || 'Intente de nuevo.'));
+      }
+    } catch (err) {
+      message.error('Error creando categoría: ' + err.message);
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -989,6 +1016,16 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         </div>
 
         <Space wrap>
+          {isAdmin && (
+            <Button
+              icon={<TagOutlined style={{ color: '#7c3aed' }} />}
+              size={embedded ? "middle" : "large"}
+              onClick={() => setShowCategoryModal(true)}
+              style={{ fontWeight: '600', borderColor: '#cbd5e1', color: '#6d28d9' }}
+            >
+              Nueva Categoría
+            </Button>
+          )}
           {canResendBulkQR && (
             <Button
               icon={<SendOutlined style={{ color: '#0284c7' }} />}
@@ -1404,6 +1441,39 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
             </Form>
           </>
         )}
+      </Modal>
+
+      {/* Modal Crear Nueva Categoría Manualmente */}
+      <Modal
+        title={
+          <Space>
+            <TagOutlined style={{ color: '#7c3aed' }} />
+            <span style={{ fontWeight: '700' }}>Crear Nueva Categoría Interna</span>
+          </Space>
+        }
+        open={showCategoryModal}
+        onCancel={() => { setShowCategoryModal(false); setNewCategoryName(''); }}
+        onOk={handleCreateCategory}
+        confirmLoading={creatingCategory}
+        okText="Crear Categoría"
+        cancelText="Cancelar"
+        okButtonProps={{ style: { backgroundColor: '#7c3aed', borderColor: '#7c3aed', fontWeight: 'bold' } }}
+      >
+        <Paragraph style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '16px' }}>
+          Ingrese el nombre de la nueva categoría interna para este evento (ej: VIP, Prensa, Patrocinadores, Gobierno).
+        </Paragraph>
+        <Form layout="vertical">
+          <Form.Item label={<Text strong style={{ fontSize: '0.85rem' }}>Nombre de la Categoría:</Text>} required style={{ marginBottom: 0 }}>
+            <Input
+              placeholder="Ej: Medios & Prensa"
+              prefix={<TagOutlined style={{ color: '#94a3b8' }} />}
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onPressEnter={handleCreateCategory}
+              autoFocus
+            />
+          </Form.Item>
+        </Form>
       </Modal>
 
     </div>
