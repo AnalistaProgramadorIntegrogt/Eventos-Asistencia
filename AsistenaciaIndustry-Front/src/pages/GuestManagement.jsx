@@ -330,6 +330,93 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
   };
 
+  const handleExportCSV = () => {
+    try {
+      const customFields = (eventFormConfig && Array.isArray(eventFormConfig.custom_fields))
+        ? eventFormConfig.custom_fields
+        : [];
+
+      const headers = [
+        'Código/QR',
+        'Nombre Completo',
+        'Correo Electrónico',
+        'Empresa',
+        'Cargo/Puesto',
+        'Teléfono',
+        'Categoría Interna',
+        'Tipo de Invitado',
+        'Estado de Confirmación/Asistencia',
+        'Fecha de Registro/Confirmación',
+        'Fecha de Check-in',
+        'Escaneado Por',
+        'Tipo de Check-in',
+        ...customFields.map(cf => cf.label || cf.id)
+      ];
+
+      const rows = filteredSubmissions.map(item => {
+        const isVip = checkIsVip(item);
+        const catName = resolveCategoryName(item) || 'Sin Categoría';
+        const typeStr = isVip ? 'VIP (Excel)' : 'Web Público';
+        
+        let statusStr = 'Pendiente';
+        if (item.status === 'confirmed') statusStr = 'Registrado / Confirmado';
+        else if (item.status === 'checked_in') statusStr = 'Asistió / Check-in';
+        else if (item.status === 'declined') statusStr = 'Cancelado';
+
+        const regDate = item.created_at ? new Date(item.created_at).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
+        const checkinDate = item.check_in_time ? new Date(item.check_in_time).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
+        const scannedBy = item.scanned_by_name || '—';
+        const checkinType = item.checkin_type || '—';
+
+        const customValues = customFields.map(cf => {
+          const val = getFlexibleValue(item.additional_data, cf.id, cf.label);
+          return val !== null && val !== undefined ? String(val) : '—';
+        });
+
+        const rowData = [
+          item.code || item.qr_code || '—',
+          item.full_name || '—',
+          item.email || '—',
+          item.company || '—',
+          item.job_title || '—',
+          item.phone || '—',
+          catName,
+          typeStr,
+          statusStr,
+          regDate,
+          checkinDate,
+          scannedBy,
+          checkinType,
+          ...customValues
+        ];
+
+        return rowData.map(val => {
+          const cleanVal = String(val).replace(/"/g, '""');
+          return `"${cleanVal}"`;
+        }).join(',');
+      });
+
+      const csvContent = '\uFEFF' + [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      
+      const eventNameClean = (eventFormConfig?.form_title || 'invitados').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      link.setAttribute('download', `reporte_invitados_${eventNameClean}_${new Date().toISOString().slice(0,10)}.csv`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      message.success('Reporte de invitados descargado exitosamente.');
+    } catch (err) {
+      console.error(err);
+      message.error('Error al exportar reporte: ' + err.message);
+    }
+  };
+
   const handleDeleteGuest = async (record) => {
     try {
       let deleted = false;
@@ -1123,6 +1210,14 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               </Select>
               <Button icon={<ReloadOutlined />} onClick={() => { fetchCategories(); fetchSubmissions(false); }}>
                 Refrescar
+              </Button>
+              <Button 
+                type="primary"
+                icon={<DownloadOutlined />} 
+                onClick={handleExportCSV}
+                style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontWeight: '600' }}
+              >
+                Exportar a Excel
               </Button>
             </div>
           </div>
