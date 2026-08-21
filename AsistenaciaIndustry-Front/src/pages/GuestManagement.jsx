@@ -106,6 +106,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStatus, setExportStatus] = useState('all');
+  const [exportCategory, setExportCategory] = useState('all');
+  const [exportType, setExportType] = useState('all');
+
   const isGenericCat = (name) => {
     if (!name) return true;
     const n = name.trim().toLowerCase();
@@ -331,6 +336,11 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   };
 
   const handleExportExcel = () => {
+    setShowExportModal(true);
+  };
+
+  const handleStartExport = () => {
+    setShowExportModal(false);
     if (typeof window.XLSX === 'undefined') {
       const hideLoad = message.loading('Cargando motor de exportación Excel...', 0);
       const script = document.createElement('script');
@@ -357,7 +367,42 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         ? eventFormConfig.custom_fields
         : [];
 
-      const dataRows = filteredSubmissions.map(item => {
+      // Filter list dynamically based on chosen export filters
+      const exportList = submissions.filter(item => {
+        // 1. Filter by Division
+        const isVip = checkIsVip(item);
+        if (exportType === 'vip' && !isVip) return false;
+        if (exportType === 'public' && isVip) return false;
+
+        // 2. Filter by Status
+        const itemStatus = item.status || 'pending';
+        if (exportStatus !== 'all' && itemStatus !== exportStatus) return false;
+
+        // 3. Filter by Category
+        if (exportCategory !== 'all') {
+          const catId = item.category_id;
+          const catName = item.internal_category || item.category_name || item.event_categories?.name;
+          const selectedCatObj = categories.find(c => c.id === exportCategory);
+          const selectedName = selectedCatObj ? selectedCatObj.name : exportCategory;
+
+          if (exportCategory === 'none') {
+            if (catId || (catName && categories.some(c => c.name.toLowerCase() === catName.toLowerCase()))) return false;
+          } else {
+            const matchesId = catId && catId === exportCategory;
+            const matchesName = catName && (catName === exportCategory || catName === selectedName);
+            if (!matchesId && !matchesName) return false;
+          }
+        }
+
+        return true;
+      });
+
+      if (exportList.length === 0) {
+        message.warning('No se encontraron invitados con los filtros seleccionados para exportar.');
+        return;
+      }
+
+      const dataRows = exportList.map(item => {
         const isVip = checkIsVip(item);
         const catName = resolveCategoryName(item) || 'Sin Categoría';
         const typeStr = isVip ? 'VIP (Excel)' : 'Web Público';
@@ -1588,6 +1633,56 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               onPressEnter={handleCreateCategory}
               autoFocus
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal Exportar a Excel con Selección de Estado y Filtros */}
+      <Modal
+        title={
+          <Space>
+            <DownloadOutlined style={{ color: '#10b981' }} />
+            <span style={{ fontWeight: '700' }}>Exportar Listado a Excel (.xlsx)</span>
+          </Space>
+        }
+        open={showExportModal}
+        onCancel={() => setShowExportModal(false)}
+        onOk={handleStartExport}
+        okText="Generar y Descargar Excel"
+        cancelText="Cancelar"
+        okButtonProps={{ style: { backgroundColor: '#10b981', borderColor: '#10b981', fontWeight: 'bold' } }}
+        width={480}
+      >
+        <Paragraph style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '16px' }}>
+          Personalice los filtros para el archivo Excel que desea descargar. Se generará un documento oficial sin advertencias de formato.
+        </Paragraph>
+        <Form layout="vertical">
+          <Form.Item label={<Text strong style={{ fontSize: '0.85rem' }}>Estado de Asistencia:</Text>}>
+            <Select value={exportStatus} onChange={setExportStatus} style={{ width: '100%' }}>
+              <Select.Option value="all">📁 Todos los Estados</Select.Option>
+              <Select.Option value="confirmed">🔵 Registrados / Confirmados</Select.Option>
+              <Select.Option value="checked_in">🟢 Asistieron (Check-in)</Select.Option>
+              <Select.Option value="pending">🟡 Pendientes de Registro</Select.Option>
+              <Select.Option value="declined">🔴 Cancelados</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item label={<Text strong style={{ fontSize: '0.85rem' }}>Categoría Interna:</Text>}>
+            <Select value={exportCategory} onChange={setExportCategory} style={{ width: '100%' }}>
+              <Select.Option value="all">🏷️ Todas las Categorías</Select.Option>
+              {categories.map(c => (
+                <Select.Option key={c.id} value={c.id}>🏷️ {c.name}</Select.Option>
+              ))}
+              <Select.Option value="none">Sin Categoría Interna</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item label={<Text strong style={{ fontSize: '0.85rem' }}>División de Invitados:</Text>} style={{ marginBottom: 0 }}>
+            <Select value={exportType} onChange={setExportType} style={{ width: '100%' }}>
+              <Select.Option value="all">👥 Todos los Invitados</Select.Option>
+              <Select.Option value="vip">⭐ Invitados VIP por Excel</Select.Option>
+              <Select.Option value="public">🌐 Registros Web Públicos</Select.Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>
