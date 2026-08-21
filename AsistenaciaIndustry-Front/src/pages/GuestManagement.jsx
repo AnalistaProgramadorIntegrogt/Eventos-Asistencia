@@ -330,7 +330,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     try {
       const customFields = (eventFormConfig && Array.isArray(eventFormConfig.custom_fields))
         ? eventFormConfig.custom_fields
@@ -345,7 +345,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         'Teléfono',
         'Categoría Interna',
         'Tipo de Invitado',
-        'Estado de Confirmación/Asistencia',
+        'Estado de Asistencia',
         'Fecha de Registro/Confirmación',
         'Fecha de Check-in',
         'Escaneado Por',
@@ -353,64 +353,120 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         ...customFields.map(cf => cf.label || cf.id)
       ];
 
-      const rows = filteredSubmissions.map(item => {
+      const rowsHtml = filteredSubmissions.map((item, idx) => {
         const isVip = checkIsVip(item);
         const catName = resolveCategoryName(item) || 'Sin Categoría';
         const typeStr = isVip ? 'VIP (Excel)' : 'Web Público';
         
         let statusStr = 'Pendiente';
-        if (item.status === 'confirmed') statusStr = 'Registrado / Confirmado';
-        else if (item.status === 'checked_in') statusStr = 'Asistió / Check-in';
-        else if (item.status === 'declined') statusStr = 'Cancelado';
+        let statusClass = 'status-pendiente';
+        if (item.status === 'confirmed') {
+          statusStr = 'Registrado / Confirmado';
+          statusClass = 'status-registrado';
+        } else if (item.status === 'checked_in') {
+          statusStr = 'Asistió / Check-in';
+          statusClass = 'status-asistio';
+        } else if (item.status === 'declined') {
+          statusStr = 'Cancelado';
+          statusClass = 'status-cancelado';
+        }
 
         const regDate = item.created_at ? new Date(item.created_at).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
         const checkinDate = item.check_in_time ? new Date(item.check_in_time).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
         const scannedBy = item.scanned_by_name || '—';
         const checkinType = item.checkin_type || '—';
 
-        const customValues = customFields.map(cf => {
+        const customCells = customFields.map(cf => {
           const val = getFlexibleValue(item.additional_data, cf.id, cf.label);
-          return val !== null && val !== undefined ? String(val) : '—';
-        });
+          return `<td>${val !== null && val !== undefined ? String(val) : '—'}</td>`;
+        }).join('');
 
-        const rowData = [
-          item.code || item.qr_code || '—',
-          item.full_name || '—',
-          item.email || '—',
-          item.company || '—',
-          item.job_title || '—',
-          item.phone || '—',
-          catName,
-          typeStr,
-          statusStr,
-          regDate,
-          checkinDate,
-          scannedBy,
-          checkinType,
-          ...customValues
-        ];
+        const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
 
-        return rowData.map(val => {
-          const cleanVal = String(val).replace(/"/g, '""');
-          return `"${cleanVal}"`;
-        }).join(',');
-      });
+        return `
+          <tr style="background-color: ${rowBg};">
+            <td style="text-align: center; font-weight: 600; color: #475569;">${item.code || item.qr_code || '—'}</td>
+            <td style="font-weight: 600; color: #1e293b;">${item.full_name || '—'}</td>
+            <td>${item.email || '—'}</td>
+            <td>${item.company || '—'}</td>
+            <td>${item.job_title || '—'}</td>
+            <td style="text-align: center;">${item.phone || '—'}</td>
+            <td>${catName}</td>
+            <td style="text-align: center; color: ${isVip ? '#7c3aed' : '#2563eb'}; font-weight: 500;">${typeStr}</td>
+            <td class="${statusClass}">${statusStr}</td>
+            <td style="text-align: center;">${regDate}</td>
+            <td style="text-align: center; font-weight: 600;">${checkinDate}</td>
+            <td>${scannedBy}</td>
+            <td style="text-align: center;">${checkinType}</td>
+            ${customCells}
+          </tr>
+        `;
+      }).join('');
 
-      const csvContent = '\uFEFF' + [headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','), ...rows].join('\n');
+      const headersHtml = headers.map(h => `<th>${h}</th>`).join('');
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const eventName = eventFormConfig?.form_title || 'Listado de Invitados';
+
+      const htmlTemplate = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+        <!--[if gte mso 9]>
+        <xml>
+         <x:ExcelWorkbook>
+          <x:ExcelWorksheets>
+           <x:ExcelWorksheet>
+            <x:Name>Invitados</x:Name>
+            <x:WorksheetOptions>
+             <x:DisplayGridlines/>
+            </x:WorksheetOptions>
+           </x:ExcelWorksheet>
+          </x:ExcelWorksheets>
+         </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
+        <style>
+          table { border-collapse: collapse; font-family: 'Segoe UI', Montserrat, Helvetica, Arial, sans-serif; font-size: 11px; }
+          th { background-color: #c3302d; color: #ffffff; font-weight: bold; text-align: center; border: 1px solid #cbd5e1; height: 32px; font-size: 12px; }
+          td { border: 1px solid #cbd5e1; padding: 6px 10px; height: 26px; }
+          .status-asistio { background-color: #d1fae5; color: #065f46; font-weight: bold; text-align: center; }
+          .status-registrado { background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: center; }
+          .status-pendiente { background-color: #fef3c7; color: #92400e; font-weight: bold; text-align: center; }
+          .status-cancelado { background-color: #fee2e2; color: #991b1b; font-weight: bold; text-align: center; }
+          .title-row { height: 50px; background-color: #f1f5f9; }
+          .title-text { font-size: 16px; font-weight: bold; color: #0f172a; text-align: left; }
+        </style>
+        </head>
+        <body>
+          <table>
+            <tr class="title-row">
+              <td colspan="${headers.length}" class="title-text" style="border: none;">
+                📊 ${eventName} - Reporte Oficial de Control de Asistencia (${new Date().toLocaleDateString('es-GT')})
+              </td>
+            </tr>
+            <tr style="height: 10px;"><td colspan="${headers.length}" style="border: none; height: 10px;"></td></tr>
+            <tr>
+              ${headersHtml}
+            </tr>
+            ${rowsHtml}
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([htmlTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
       
       const eventNameClean = (eventFormConfig?.form_title || 'invitados').toLowerCase().replace(/[^a-z0-9]/g, '_');
-      link.setAttribute('download', `reporte_invitados_${eventNameClean}_${new Date().toISOString().slice(0,10)}.csv`);
+      link.setAttribute('download', `reporte_invitados_${eventNameClean}_${new Date().toISOString().slice(0,10)}.xls`);
       
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      message.success('Reporte de invitados descargado exitosamente.');
+      message.success('Plantilla de invitados descargada exitosamente en Excel.');
     } catch (err) {
       console.error(err);
       message.error('Error al exportar reporte: ' + err.message);
@@ -1214,7 +1270,7 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
               <Button 
                 type="primary"
                 icon={<DownloadOutlined />} 
-                onClick={handleExportCSV}
+                onClick={handleExportExcel}
                 style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontWeight: '600' }}
               >
                 Exportar a Excel
