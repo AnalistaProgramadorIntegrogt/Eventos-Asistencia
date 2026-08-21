@@ -331,145 +331,110 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
   };
 
   const handleExportExcel = () => {
+    if (typeof window.XLSX === 'undefined') {
+      const hideLoad = message.loading('Cargando motor de exportación Excel...', 0);
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      script.onload = () => {
+        hideLoad();
+        generateRealXlsx();
+      };
+      script.onerror = () => {
+        hideLoad();
+        message.error('No se pudo iniciar el generador Excel. Verifique su conexión.');
+      };
+      document.body.appendChild(script);
+    } else {
+      generateRealXlsx();
+    }
+  };
+
+  const generateRealXlsx = () => {
     try {
+      const XLSX = window.XLSX;
+
       const customFields = (eventFormConfig && Array.isArray(eventFormConfig.custom_fields))
         ? eventFormConfig.custom_fields
         : [];
 
-      const headers = [
-        'Código/QR',
-        'Nombre Completo',
-        'Correo Electrónico',
-        'Empresa',
-        'Cargo/Puesto',
-        'Teléfono',
-        'Categoría Interna',
-        'Tipo de Invitado',
-        'Estado de Asistencia',
-        'Fecha de Registro/Confirmación',
-        'Fecha de Check-in',
-        'Escaneado Por',
-        'Tipo de Check-in',
-        ...customFields.map(cf => cf.label || cf.id)
-      ];
-
-      const rowsHtml = filteredSubmissions.map((item, idx) => {
+      const dataRows = filteredSubmissions.map(item => {
         const isVip = checkIsVip(item);
         const catName = resolveCategoryName(item) || 'Sin Categoría';
         const typeStr = isVip ? 'VIP (Excel)' : 'Web Público';
         
         let statusStr = 'Pendiente';
-        let statusClass = 'status-pendiente';
-        if (item.status === 'confirmed') {
-          statusStr = 'Registrado / Confirmado';
-          statusClass = 'status-registrado';
-        } else if (item.status === 'checked_in') {
-          statusStr = 'Asistió / Check-in';
-          statusClass = 'status-asistio';
-        } else if (item.status === 'declined') {
-          statusStr = 'Cancelado';
-          statusClass = 'status-cancelado';
-        }
+        if (item.status === 'confirmed') statusStr = 'Confirmado';
+        else if (item.status === 'checked_in') statusStr = 'Asistió / Check-in';
+        else if (item.status === 'declined') statusStr = 'Cancelado';
 
         const regDate = item.created_at ? new Date(item.created_at).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
         const checkinDate = item.check_in_time ? new Date(item.check_in_time).toLocaleString('es-GT', { timeZone: 'America/Guatemala' }) : '—';
         const scannedBy = item.scanned_by_name || '—';
         const checkinType = item.checkin_type || '—';
 
-        const customCells = customFields.map(cf => {
+        const row = {
+          'Código/QR': item.code || item.qr_code || '—',
+          'Nombre Completo': item.full_name || '—',
+          'Correo Electrónico': item.email || '—',
+          'Empresa': item.company || '—',
+          'Cargo/Puesto': item.job_title || '—',
+          'Teléfono': item.phone || '—',
+          'Categoría Interna': catName,
+          'Tipo de Invitado': typeStr,
+          'Estado de Asistencia': statusStr,
+          'Fecha de Registro': regDate,
+          'Fecha de Check-in': checkinDate,
+          'Escaneado Por': scannedBy,
+          'Tipo de Check-in': checkinType
+        };
+
+        customFields.forEach(cf => {
           const val = getFlexibleValue(item.additional_data, cf.id, cf.label);
-          return `<td>${val !== null && val !== undefined ? String(val) : '—'}</td>`;
-        }).join('');
+          row[cf.label || cf.id] = val !== null && val !== undefined ? String(val) : '—';
+        });
 
-        const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+        return row;
+      });
 
-        return `
-          <tr style="background-color: ${rowBg};">
-            <td style="text-align: center; font-weight: 600; color: #475569;">${item.code || item.qr_code || '—'}</td>
-            <td style="font-weight: 600; color: #1e293b;">${item.full_name || '—'}</td>
-            <td>${item.email || '—'}</td>
-            <td>${item.company || '—'}</td>
-            <td>${item.job_title || '—'}</td>
-            <td style="text-align: center;">${item.phone || '—'}</td>
-            <td>${catName}</td>
-            <td style="text-align: center; color: ${isVip ? '#7c3aed' : '#2563eb'}; font-weight: 500;">${typeStr}</td>
-            <td class="${statusClass}">${statusStr}</td>
-            <td style="text-align: center;">${regDate}</td>
-            <td style="text-align: center; font-weight: 600;">${checkinDate}</td>
-            <td>${scannedBy}</td>
-            <td style="text-align: center;">${checkinType}</td>
-            ${customCells}
-          </tr>
-        `;
-      }).join('');
+      const ws = XLSX.utils.json_to_sheet(dataRows);
+      const wb = XLSX.utils.book_new();
 
-      const headersHtml = headers.map(h => `<th>${h}</th>`).join('');
+      // Style Header row to be bold and clean
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const address = XLSX.utils.encode_cell({ r: 0, c: C });
+        if (!ws[address]) continue;
+        ws[address].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "C3302D" } },
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+      }
 
-      const eventName = eventFormConfig?.form_title || 'Listado de Invitados';
+      // Auto-fit columns
+      const colWidths = [];
+      if (dataRows.length > 0) {
+        const keys = Object.keys(dataRows[0]);
+        keys.forEach((key) => {
+          let maxLen = key.length;
+          dataRows.forEach(row => {
+            const val = String(row[key] || '');
+            if (val.length > maxLen) maxLen = val.length;
+          });
+          colWidths.push({ wch: maxLen + 3 });
+        });
+        ws['!cols'] = colWidths;
+      }
 
-      const htmlTemplate = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-        <!--[if gte mso 9]>
-        <xml>
-         <x:ExcelWorkbook>
-          <x:ExcelWorksheets>
-           <x:ExcelWorksheet>
-            <x:Name>Invitados</x:Name>
-            <x:WorksheetOptions>
-             <x:DisplayGridlines/>
-            </x:WorksheetOptions>
-           </x:ExcelWorksheet>
-          </x:ExcelWorksheets>
-         </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
-        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
-        <style>
-          table { border-collapse: collapse; font-family: 'Segoe UI', Montserrat, Helvetica, Arial, sans-serif; font-size: 11px; }
-          th { background-color: #c3302d; color: #ffffff; font-weight: bold; text-align: center; border: 1px solid #cbd5e1; height: 32px; font-size: 12px; }
-          td { border: 1px solid #cbd5e1; padding: 6px 10px; height: 26px; }
-          .status-asistio { background-color: #d1fae5; color: #065f46; font-weight: bold; text-align: center; }
-          .status-registrado { background-color: #dbeafe; color: #1e40af; font-weight: bold; text-align: center; }
-          .status-pendiente { background-color: #fef3c7; color: #92400e; font-weight: bold; text-align: center; }
-          .status-cancelado { background-color: #fee2e2; color: #991b1b; font-weight: bold; text-align: center; }
-          .title-row { height: 50px; background-color: #f1f5f9; }
-          .title-text { font-size: 16px; font-weight: bold; color: #0f172a; text-align: left; }
-        </style>
-        </head>
-        <body>
-          <table>
-            <tr class="title-row">
-              <td colspan="${headers.length}" class="title-text" style="border: none;">
-                📊 ${eventName} - Reporte Oficial de Control de Asistencia (${new Date().toLocaleDateString('es-GT')})
-              </td>
-            </tr>
-            <tr style="height: 10px;"><td colspan="${headers.length}" style="border: none; height: 10px;"></td></tr>
-            <tr>
-              ${headersHtml}
-            </tr>
-            ${rowsHtml}
-          </table>
-        </body>
-        </html>
-      `;
+      XLSX.utils.book_append_sheet(wb, ws, 'Invitados');
 
-      const blob = new Blob([htmlTemplate], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      
       const eventNameClean = (eventFormConfig?.form_title || 'invitados').toLowerCase().replace(/[^a-z0-9]/g, '_');
-      link.setAttribute('download', `reporte_invitados_${eventNameClean}_${new Date().toISOString().slice(0,10)}.xls`);
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      message.success('Plantilla de invitados descargada exitosamente en Excel.');
+      XLSX.writeFile(wb, `reporte_invitados_${eventNameClean}_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+      message.success('Plantilla oficial de invitados descargada en Excel (.xlsx).');
     } catch (err) {
       console.error(err);
-      message.error('Error al exportar reporte: ' + err.message);
+      message.error('Error al generar Excel: ' + err.message);
     }
   };
 
