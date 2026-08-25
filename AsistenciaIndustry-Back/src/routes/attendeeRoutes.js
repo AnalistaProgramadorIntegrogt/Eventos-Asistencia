@@ -162,7 +162,7 @@ router.put(['/attendees/:id', '/:eventId/attendees/:id'], requirePermission('VIE
     if (email !== undefined) updates.email = email;
     if (company !== undefined) updates.company = company;
     if (job_title !== undefined) updates.job_title = job_title;
-    if (category_id !== undefined) updates.category_id = category_id;
+    if (category_id !== undefined) updates.category_id = (category_id === '' || category_id === 'none') ? null : category_id;
     if (status !== undefined) updates.status = status;
     
     let mergedAdditionalData = additional_data !== undefined ? { ...additional_data } : { ...(existingAttendee.additional_data || {}) };

@@ -194,6 +194,10 @@ export default function GuestManagement({ selectedEventId, embedded = false, cur
         additional_data: additionalData
       };
 
+      if (payload.category_id === '' || payload.category_id === 'none') {
+        payload.category_id = null;
+      }
+
       let res;
       if (editingGuest.is_imported || editingGuest.invitation_id) {
         const targetId = editingGuest.invitation_id || editingGuest.id;

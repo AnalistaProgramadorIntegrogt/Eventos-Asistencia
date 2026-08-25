@@ -530,7 +530,7 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
     const updates = {};
     if (guest_name !== undefined) updates.guest_name = guest_name;
     if (guest_email !== undefined) updates.guest_email = guest_email;
-    if (category_id !== undefined) updates.category_id = category_id;
+    if (category_id !== undefined) updates.category_id = (category_id === '' || category_id === 'none') ? null : category_id;
     if (code !== undefined) updates.code = code;
     if (is_active !== undefined) updates.is_active = is_active;
 
@@ -554,7 +554,7 @@ router.put('/invitations/:id', requirePermission(['EDIT_GUEST_INFO', 'EDIT_GUEST
       if (guest_email !== undefined) attUpdates.email = guest_email;
       if (company !== undefined) attUpdates.company = company;
       if (job_title !== undefined) attUpdates.job_title = job_title;
-      if (category_id !== undefined) attUpdates.category_id = category_id;
+      if (category_id !== undefined) attUpdates.category_id = (category_id === '' || category_id === 'none') ? null : category_id;
       if (phone !== undefined) attUpdates.phone = phone;
 
       const existingAddData = existingAttendee.additional_data || {};
