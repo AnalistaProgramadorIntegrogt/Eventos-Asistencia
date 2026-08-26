@@ -570,15 +570,48 @@ router.post('/events/:id/checkin', async (req, res) => {
 
         if (invs && invs.length > 0) {
           const inv = invs[0];
-          attendee = {
-            id: inv.id,
-            first_name: inv.guest_name || `${inv.first_name || ''} ${inv.last_name || ''}`.trim() || 'Invitado',
-            last_name: '',
-            company: inv.company || inv.guest_company || '',
-            email: inv.guest_email || inv.email || '',
-            status: inv.status || 'pending',
-            event_categories: inv.event_categories
-          };
+          
+          // Verificar si ya se había creado un asistente con esta invitación
+          const { data: existingAtt } = await supabase
+            .from('attendees')
+            .select('*, event_categories(name)')
+            .eq('invitation_id', inv.id)
+            .maybeSingle();
+
+          if (existingAtt) {
+            attendee = existingAtt;
+          } else {
+            // Crear el registro de asistente vinculado a esta invitación para evitar error 500 FK checkins
+            const rawName = inv.guest_name || 'Invitado VIP';
+            const nameParts = rawName.trim().split(' ');
+            const newQrCode = inv.code || `VIP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+            const attendeePayload = {
+              event_id: inv.event_id,
+              invitation_id: inv.id,
+              category_id: inv.category_id || null,
+              first_name: nameParts[0] || 'Invitado',
+              last_name: nameParts.slice(1).join(' ') || '',
+              email: inv.guest_email || inv.email || '',
+              company: inv.company || inv.guest_company || '',
+              qr_code: newQrCode,
+              status: 'pending',
+              is_public_registration: false,
+              additional_data: inv.additional_data || {}
+            };
+
+            const { data: createdAtt, error: createErr } = await supabase
+              .from('attendees')
+              .insert([attendeePayload])
+              .select('*, event_categories(name)')
+              .single();
+
+            if (!createErr && createdAtt) {
+              attendee = createdAtt;
+            } else {
+              throw new Error(createErr ? createErr.message : 'Error creando registro de asistencia público.');
+            }
+          }
           break;
         }
       }
@@ -644,6 +677,8 @@ router.post('/events/:id/checkin', async (req, res) => {
 
 
 
+    // Eliminado: Bloquear checkin por fecha de finalización causa problemas operativos.
+    /*
     if (event.end_date) {
       const endDate = new Date(event.end_date);
       if (now > endDate) {
@@ -654,6 +689,7 @@ router.post('/events/:id/checkin', async (req, res) => {
         });
       }
     }
+    */
 
     // 3. Verificar si ya ingresó (buscando en la tabla checkins o el estado del attendee)
     const { data: existingCheckin } = await supabase
