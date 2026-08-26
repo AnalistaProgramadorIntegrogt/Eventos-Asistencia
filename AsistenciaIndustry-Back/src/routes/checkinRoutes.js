@@ -134,6 +134,8 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
 
 
     // 1.6. Verificar si el evento ya finalizó por completo
+    // Eliminado: Bloquear el check-in si el evento "terminó" causa problemas en la vida real si el evento se atrasa.
+    /*
     if (event && event.end_date) {
       const endDate = new Date(event.end_date);
       const now = new Date();
@@ -147,6 +149,7 @@ router.post('/scan', requirePermission('SCAN_QR_CHECKIN'), async (req, res) => {
         });
       }
     }
+    */
 
     // 2. Verificar si el código ya fue utilizado
     const { data: existingCheckin } = await supabase
@@ -347,6 +350,8 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
     const targetAttendeeId = attendee.id;
 
     // Verificar si el evento ya finalizó por completo
+    // Eliminado: Bloquear asistencia manual por hora de fin causa fricción operativa
+    /*
     if (event && event.end_date) {
       const endDate = new Date(event.end_date);
       const now = new Date();
@@ -358,6 +363,7 @@ router.post('/manual', requirePermission('MARK_ATTENDANCE_MANUAL'), async (req, 
         });
       }
     }
+    */
 
     // Verificar si ya marcó asistencia anteriormente
     const { data: existingCheckin } = await supabase
