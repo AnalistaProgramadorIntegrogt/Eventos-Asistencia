@@ -328,46 +328,77 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
     const eventName = event ? event.name : 'el evento';
     const eventLocation = event?.location || 'Por confirmar';
 
-    const extractLocalDate = (dateStr) => {
-      let s = String(dateStr).trim();
-      s = s.replace(/Z$/, '').replace(/[-+]\d{2}:\d{2}$/, '');
-      s = s.replace(' ', 'T');
-      return new Date(s);
+    const parseToLocalElements = (val) => {
+      let y, m, d, h, min;
+      try {
+        if (val instanceof Date) {
+          // If the DB parsed the local time as UTC, its UTC getters have the correct literal local numbers.
+          y = val.getUTCFullYear();
+          m = val.getUTCMonth(); // 0-indexed
+          d = val.getUTCDate();
+          h = val.getUTCHours();
+          min = val.getUTCMinutes();
+        } else {
+          const s = String(val).trim();
+          // Extract numbers manually assuming ISO-like format: YYYY-MM-DDTHH:mm
+          const match = s.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+          if (match) {
+            y = parseInt(match[1], 10);
+            m = parseInt(match[2], 10) - 1;
+            d = parseInt(match[3], 10);
+            h = parseInt(match[4], 10);
+            min = parseInt(match[5], 10);
+          } else {
+            // Fallback for weird strings like "Wed Aug 26..."
+            const dObj = new Date(s);
+            if (!isNaN(dObj.getTime())) {
+              y = dObj.getUTCFullYear();
+              m = dObj.getUTCMonth();
+              d = dObj.getUTCDate();
+              h = dObj.getUTCHours();
+              min = dObj.getUTCMinutes();
+            } else {
+              return null;
+            }
+          }
+        }
+        return { y, m, d, h, min };
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const getWeekday = (y, m, d) => {
+      // Create a local date for the 12:00 PM of that day just to get the weekday safely
+      const dateObj = new Date(y, m, d, 12, 0, 0);
+      const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      return dias[dateObj.getDay()];
     };
 
     const formatDateGT = (dateStr) => {
       if (!dateStr) return 'Por confirmar';
-      try {
-        const d = extractLocalDate(dateStr);
-        if (isNaN(d.getTime())) return dateStr;
-        const formatted = d.toLocaleDateString('es-GT', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric'
-        });
-        return formatted.charAt(0).toUpperCase() + formatted.slice(1);
-      } catch (e) {
-        return dateStr || 'Por confirmar';
-      }
+      const parsed = parseToLocalElements(dateStr);
+      if (!parsed) return String(dateStr);
+      
+      const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+      const diaSemana = getWeekday(parsed.y, parsed.m, parsed.d);
+      
+      return `${diaSemana}, ${parsed.d} de ${meses[parsed.m]} de ${parsed.y}`;
     };
 
     const formatTimeGT = (dateStr) => {
       if (!dateStr) return 'Por confirmar';
-      try {
-        const d = extractLocalDate(dateStr);
-        if (isNaN(d.getTime())) return 'Por confirmar';
-        
-        let h = d.getHours();
-        let m = d.getMinutes();
-        const ampmStr = h >= 12 ? 'p. m.' : 'a. m.';
-        h = h % 12;
-        if (h === 0) h = 12;
-        m = m < 10 ? '0' + m : m;
-        return `${h}:${m} ${ampmStr}`;
-      } catch (e) {
-        return 'Por confirmar';
-      }
+      const parsed = parseToLocalElements(dateStr);
+      if (!parsed) return String(dateStr);
+      
+      let h = parsed.h;
+      let min = parsed.min;
+      const ampmStr = h >= 12 ? 'p. m.' : 'a. m.';
+      h = h % 12;
+      if (h === 0) h = 12;
+      const mStr = min < 10 ? '0' + min : min;
+      
+      return `${h}:${mStr} ${ampmStr}`;
     };
 
     const fechaStr = formatDateGT(event?.start_date);
