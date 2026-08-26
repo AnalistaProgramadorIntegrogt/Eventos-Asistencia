@@ -328,10 +328,17 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
     const eventName = event ? event.name : 'el evento';
     const eventLocation = event?.location || 'Por confirmar';
 
+    const extractLocalDate = (dateStr) => {
+      let s = String(dateStr).trim();
+      s = s.replace(/Z$/, '').replace(/[-+]\d{2}:\d{2}$/, '');
+      s = s.replace(' ', 'T');
+      return new Date(s);
+    };
+
     const formatDateGT = (dateStr) => {
       if (!dateStr) return 'Por confirmar';
       try {
-        const d = new Date(dateStr);
+        const d = extractLocalDate(dateStr);
         if (isNaN(d.getTime())) return dateStr;
         const formatted = d.toLocaleDateString('es-GT', {
           weekday: 'long',
@@ -348,18 +355,16 @@ router.post('/attendees/:id/send-whatsapp', requirePermission('VIEW_GUESTS'), as
     const formatTimeGT = (dateStr) => {
       if (!dateStr) return 'Por confirmar';
       try {
-        let s = String(dateStr).trim();
-        if (!s.endsWith('Z') && !s.includes('+') && !/[-+]\d{2}:\d{2}$/.test(s)) {
-          s = s.replace(' ', 'T') + 'Z';
-        }
-        const d = new Date(s);
+        const d = extractLocalDate(dateStr);
         if (isNaN(d.getTime())) return 'Por confirmar';
-        return d.toLocaleTimeString('es-GT', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-          timeZone: 'America/Guatemala'
-        });
+        
+        let h = d.getHours();
+        let m = d.getMinutes();
+        const ampmStr = h >= 12 ? 'p. m.' : 'a. m.';
+        h = h % 12;
+        if (h === 0) h = 12;
+        m = m < 10 ? '0' + m : m;
+        return `${h}:${m} ${ampmStr}`;
       } catch (e) {
         return 'Por confirmar';
       }
